@@ -28,10 +28,16 @@ dependencies = [
     "html2text>=2024.2.26",
     "youtube-transcript-api>=0.6.2",
     "claude-agent-sdk>=0.1",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.1",
+    "sse-starlette>=2.1",
+    "python-multipart>=0.0.9",
 ]
 
 [project.scripts]
 notebookai = "notebookai.cli:app"
+notebookai-api = "notebookai.api.main:run"
 
 [dependency-groups]
 dev = [
