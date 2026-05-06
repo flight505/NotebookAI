@@ -10,12 +10,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
+from notebookai.agent.passive_watcher import supervisor as passive_watcher_supervisor
 from notebookai.api.dependencies import (
     AppConfig,
     get_config,
     get_notebook_meta,
     resolve_notebook_root,
 )
+from notebookai.index.store import IndexStore
 from notebookai.scaffold import NotebookMeta, create_notebook
 
 router = APIRouter(prefix="/notebooks", tags=["notebooks"])
@@ -57,7 +59,9 @@ def create(
         (handle.root / ".notebookai" / "notebook.json").write_text(
             meta.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
+        _ensure_passive_watcher(meta.id, handle.root)
         return meta
+    _ensure_passive_watcher(handle.meta.id, handle.root)
     return handle.meta
 
 
@@ -66,7 +70,9 @@ def read(
     notebook_id: str,
     config: Annotated[AppConfig, Depends(get_config)],
 ) -> NotebookMeta:
-    return get_notebook_meta(notebook_id, config)
+    meta = get_notebook_meta(notebook_id, config)
+    _ensure_passive_watcher(notebook_id, resolve_notebook_root(notebook_id, config))
+    return meta
 
 
 @router.patch("/{notebook_id}", response_model=NotebookMeta)
@@ -114,3 +120,17 @@ def _read_meta(path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return {}
+
+
+def _ensure_passive_watcher(notebook_id: str, root) -> None:
+    """Idempotent registration of the passive watcher for a notebook.
+
+    The supervisor is a process-singleton; this just primes its store so
+    on_event callers downstream can persist findings without rebooting.
+    """
+    try:
+        store = IndexStore(root)
+        store.bootstrap()
+    except Exception:  # noqa: BLE001
+        return
+    passive_watcher_supervisor.get(notebook_id, store=store)

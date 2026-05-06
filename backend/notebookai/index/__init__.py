@@ -28,6 +28,7 @@ from .events import (
 from .schema import (
     Base,
     EmbeddingChunk,
+    LintBudget,
     LintFinding,
     Notebook,
     SourceFile,
@@ -49,6 +50,7 @@ __all__ = [
     "Notebook",
     "SourceFile",
     "EmbeddingChunk",
+    "LintBudget",
     "LintFinding",
     "SourceKind",
     "ChunkKind",

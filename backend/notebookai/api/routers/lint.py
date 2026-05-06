@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from ulid import ULID
 
 from notebookai.agent import operations as agent_operations
+from notebookai.agent.budget import BudgetTracker
+from notebookai.agent.lint import LintEngine
 from notebookai.agent.runtime import AgentRuntime
 from notebookai.api.dependencies import (
     AppConfig,
@@ -118,20 +122,51 @@ def list_findings(
     return out
 
 
+class ResolveBody(BaseModel):
+    action: Literal["accept", "reject"]
+
+
 @router.post("/findings/{finding_id}/resolve", response_model=LintFindingOut)
-def resolve_finding(
+async def resolve_finding(
     notebook_id: str,
     finding_id: str,
+    body: ResolveBody,
     config: Annotated[AppConfig, Depends(get_config)],
+    runtime: Annotated[AgentRuntime, Depends(get_runtime)],
 ) -> LintFindingOut:
     root = resolve_notebook_root(notebook_id, config)
     store = _store(root)
     try:
+        if body.action == "reject":
+            with store.session() as s:
+                row = s.get(LintFinding, finding_id)
+                if row is None or row.notebook_id != notebook_id:
+                    raise HTTPException(status_code=404, detail="finding not found")
+                row.status = "rejected"
+                return LintFindingOut(
+                    id=row.id,
+                    notebook_id=row.notebook_id,
+                    kind=row.kind,
+                    status=row.status,
+                    payload=row.payload,
+                )
+
+        # action == "accept" — apply via LintEngine.
+        with store.session() as s:
+            existing = s.get(LintFinding, finding_id)
+            if existing is None or existing.notebook_id != notebook_id:
+                raise HTTPException(status_code=404, detail="finding not found")
+
+        engine = LintEngine(runtime, store, notebook_id)
+        try:
+            await engine.apply_finding(finding_id, root)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
         with store.session() as s:
             row = s.get(LintFinding, finding_id)
-            if row is None or row.notebook_id != notebook_id:
+            if row is None:
                 raise HTTPException(status_code=404, detail="finding not found")
-            row.status = "resolved"
             return LintFindingOut(
                 id=row.id,
                 notebook_id=row.notebook_id,
@@ -139,6 +174,86 @@ def resolve_finding(
                 status=row.status,
                 payload=row.payload,
             )
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Budget endpoints
+# ---------------------------------------------------------------------------
+
+
+class BudgetOut(BaseModel):
+    notebook_id: str
+    day: date
+    input_tokens_used: int
+    output_tokens_used: int
+    input_limit: int
+    output_limit: int
+    last_op_at: datetime | None = None
+    denied_op_count: int
+
+
+class BudgetUpdate(BaseModel):
+    input_limit: int | None = Field(default=None, ge=0)
+    output_limit: int | None = Field(default=None, ge=0)
+
+
+def _budget_tracker(notebook_id: str, root: Path) -> tuple[BudgetTracker, IndexStore, dict]:
+    meta_path = root / ".notebookai" / "notebook.json"
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+    agent_cfg = (meta.get("agent") or {}) if isinstance(meta, dict) else {}
+    daily = int(agent_cfg.get("lint_budget_tokens_per_day", 50_000))
+    output_limit = int(agent_cfg.get("lint_output_budget_tokens_per_day", 10_000))
+    store = _store(root)
+    return BudgetTracker(store, notebook_id, input_limit=daily, output_limit=output_limit), store, meta
+
+
+@router.get("/budget", response_model=BudgetOut)
+def read_budget(
+    notebook_id: str,
+    config: Annotated[AppConfig, Depends(get_config)],
+) -> BudgetOut:
+    root = resolve_notebook_root(notebook_id, config)
+    tracker, store, _meta = _budget_tracker(notebook_id, root)
+    try:
+        snap = tracker.get_today()
+        return BudgetOut(**snap.model_dump())
+    finally:
+        store.close()
+
+
+@router.post("/budget", response_model=BudgetOut)
+def update_budget(
+    notebook_id: str,
+    body: BudgetUpdate,
+    config: Annotated[AppConfig, Depends(get_config)],
+) -> BudgetOut:
+    root = resolve_notebook_root(notebook_id, config)
+    tracker, store, meta = _budget_tracker(notebook_id, root)
+    try:
+        snap = tracker.update_limits(
+            input_limit=body.input_limit,
+            output_limit=body.output_limit,
+        )
+        # Persist into notebook.json so future processes see the new limits.
+        if not isinstance(meta, dict):
+            meta = {}
+        agent_cfg = dict(meta.get("agent") or {})
+        if body.input_limit is not None:
+            agent_cfg["lint_budget_tokens_per_day"] = int(body.input_limit)
+        if body.output_limit is not None:
+            agent_cfg["lint_output_budget_tokens_per_day"] = int(body.output_limit)
+        meta["agent"] = agent_cfg
+        meta_path = root / ".notebookai" / "notebook.json"
+        try:
+            meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        return BudgetOut(**snap.model_dump())
     finally:
         store.close()
 

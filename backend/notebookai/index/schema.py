@@ -9,11 +9,12 @@ by ``sqlite-vec``; ``EmbeddingChunk.vec_rowid`` links to that table.
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     Enum as SAEnum,
     Float,
     ForeignKey,
@@ -155,10 +156,7 @@ class EmbeddingChunk(Base):
 
 
 class LintFinding(Base):
-    """Placeholder for Phase 10. We just need the table now.
-
-    A finding produced by the scheduled Haiku lint pass.
-    """
+    """A finding produced by the lint engine — passive watcher or Haiku."""
 
     __tablename__ = "lint_findings"
 
@@ -170,3 +168,30 @@ class LintFinding(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=_utcnow, nullable=False)
+
+
+class LintBudget(Base):
+    """Per-notebook, per-day token budget for lint operations.
+
+    One row per (notebook_id, day) pair. `input_tokens_used` and
+    `output_tokens_used` accumulate across the day; the engine consults
+    `input_limit` / `output_limit` before spending.
+    """
+
+    __tablename__ = "lint_budget"
+    __table_args__ = (
+        UniqueConstraint("notebook_id", "day", name="uq_lint_budget_nb_day"),
+        Index("ix_lint_budget_nb_day", "notebook_id", "day"),
+    )
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True)  # ULID
+    notebook_id: Mapped[str] = mapped_column(
+        ForeignKey("notebooks.id", ondelete="CASCADE"), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    input_tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=50000)
+    output_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=10000)
+    last_op_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    denied_op_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
