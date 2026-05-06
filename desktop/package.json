@@ -1,0 +1,16 @@
+{
+  "name": "notebookai-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NotebookAI Tauri 2 desktop shell",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "cargo tauri build --debug --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
