@@ -578,11 +578,12 @@ def test_history_disabled_git_uses_oplog(
     oplog.write_text(
         json.dumps(
             {
-                "id": "01HW000000000000000000000A",
+                "sha": "01HW000000000000000000000A",
                 "op": "compile",
                 "op_id": "01HW000000000000000000000A",
                 "summary": "fake compile",
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "subject": "[compile] fake compile",
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         )
         + "\n",

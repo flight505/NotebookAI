@@ -287,7 +287,8 @@ def test_commit_op_result_disabled_git(tmp_path: Path):
     sha = _commit_op_result(
         nb, op="ingest", summary="wrote raw/foo.md", op_id="01HXID", model="claude-haiku-4-5"
     )
-    assert sha == "oplog-01HXID"
+    # In disabled-git mode the sha is a synthetic ULID written into oplog.jsonl.
+    assert sha and sha != ""
 
     oplog = nb / ".notebookai" / "oplog.jsonl"
     assert oplog.is_file()
@@ -379,7 +380,8 @@ async def test_ingest_dispatches_url_adapter(tmp_path: Path):
     assert not mock_yt.called
     assert result.op == "ingest"
     assert result.summary == "mock summary"
-    assert result.commit_sha == f"oplog-{result.op_id}"
+    # Disabled-git: commit_sha is a synthetic ULID, not "oplog-<op_id>".
+    assert result.commit_sha and result.commit_sha != ""
 
 
 @pytest.mark.asyncio

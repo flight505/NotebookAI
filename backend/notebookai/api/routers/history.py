@@ -1,21 +1,23 @@
-"""History router: git log / show — falls back to oplog when git disabled."""
+"""History router — git log / show via :class:`NotebookRepo`.
+
+Mirrors `/api/notebooks/{id}/log` semantics in disabled-git mode by
+reading ``.notebookai/oplog.jsonl``.
+"""
 
 from __future__ import annotations
 
-import json
 import subprocess
-from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from notebookai.api.dependencies import (
     AppConfig,
     get_config,
-    get_notebook_meta,
     resolve_notebook_root,
 )
+from notebookai.git import Commit, NotebookRepo
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/history", tags=["history"])
 
@@ -26,81 +28,33 @@ class HistoryEntry(BaseModel):
     created_at: str | None = None
     subject: str
     body: str = ""
+    op: str | None = None
+    op_id: str | None = None
+    files_changed: list[str] = []
+    insertions: int = 0
+    deletions: int = 0
 
 
 class HistoryDetail(HistoryEntry):
     diff: str = ""
 
 
-def _git_history(root: Path, *, limit: int, since_sha: str | None) -> list[HistoryEntry]:
-    rng = f"{since_sha}..HEAD" if since_sha else None
-    cmd = [
-        "git",
-        "log",
-        f"-n{limit}",
-        "--pretty=%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e",
-    ]
-    if rng:
-        cmd.append(rng)
-    cmd.extend(["--", "."])
-    try:
-        out = subprocess.run(
-            cmd,
-            cwd=str(root),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except (subprocess.SubprocessError, OSError) as exc:
-        raise HTTPException(status_code=500, detail=f"git failed: {exc}") from exc
-
-    entries: list[HistoryEntry] = []
-    for chunk in (out.stdout or "").split("\x1e"):
-        chunk = chunk.strip("\n")
-        if not chunk:
-            continue
-        parts = chunk.split("\x1f")
-        if len(parts) < 4:
-            continue
-        sha, author, created_at, subject = parts[0], parts[1], parts[2], parts[3]
-        body = parts[4] if len(parts) > 4 else ""
-        entries.append(
-            HistoryEntry(
-                sha=sha,
-                author=author,
-                created_at=created_at,
-                subject=subject,
-                body=body,
-            )
-        )
-    return entries
-
-
-def _oplog_history(root: Path, *, limit: int) -> list[HistoryEntry]:
-    p = root / ".notebookai" / "oplog.jsonl"
-    if not p.is_file():
-        return []
-    out: list[HistoryEntry] = []
-    for raw in reversed(p.read_text(encoding="utf-8").splitlines()):
-        if not raw.strip():
-            continue
-        try:
-            obj: dict[str, Any] = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        out.append(
-            HistoryEntry(
-                sha=str(obj.get("op_id") or obj.get("id") or ""),
-                author=str(obj.get("author") or "agent"),
-                created_at=str(obj.get("ts") or obj.get("created_at") or ""),
-                subject=f"[{obj.get('op','op')}] {obj.get('summary','')}",
-                body="",
-            )
-        )
-        if len(out) >= limit:
-            break
-    return out
+def _commit_to_entry(c: Commit) -> HistoryEntry:
+    author = c.author_name or None
+    if author and c.author_email:
+        author = f"{c.author_name} <{c.author_email}>"
+    return HistoryEntry(
+        sha=c.sha,
+        author=author,
+        created_at=c.created_at or None,
+        subject=c.subject,
+        body=c.body,
+        op=c.op,
+        op_id=c.op_id,
+        files_changed=list(c.files_changed),
+        insertions=c.insertions,
+        deletions=c.deletions,
+    )
 
 
 @router.get("", response_model=list[HistoryEntry])
@@ -109,12 +63,12 @@ def list_history(
     config: Annotated[AppConfig, Depends(get_config)],
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     since_sha: Annotated[str | None, Query()] = None,
+    op: Annotated[str | None, Query()] = None,
 ) -> list[HistoryEntry]:
     root = resolve_notebook_root(notebook_id, config)
-    meta = get_notebook_meta(notebook_id, config)
-    if not meta.git_enabled:
-        return _oplog_history(root, limit=limit)
-    return _git_history(root, limit=limit, since_sha=since_sha)
+    repo = NotebookRepo(root)
+    commits = repo.get_history(limit=limit, since_sha=since_sha, op_filter=op)
+    return [_commit_to_entry(c) for c in commits]
 
 
 @router.get("/{sha}", response_model=HistoryDetail)
@@ -124,46 +78,58 @@ def get_history_entry(
     config: Annotated[AppConfig, Depends(get_config)],
 ) -> HistoryDetail:
     root = resolve_notebook_root(notebook_id, config)
-    meta = get_notebook_meta(notebook_id, config)
-    if not meta.git_enabled:
-        # Look up in oplog by id.
-        for entry in _oplog_history(root, limit=1000):
-            if entry.sha == sha:
-                return HistoryDetail(**entry.model_dump(), diff="")
-        raise HTTPException(status_code=404, detail="oplog entry not found")
-
-    try:
-        out = subprocess.run(
-            ["git", "show", "--pretty=full", "--stat", sha],
-            cwd=str(root),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except (subprocess.SubprocessError, OSError) as exc:
-        raise HTTPException(status_code=500, detail=f"git failed: {exc}") from exc
-    if out.returncode != 0:
+    repo = NotebookRepo(root)
+    c = repo.get_commit(sha)
+    if c is None:
         raise HTTPException(status_code=404, detail="commit not found")
+    base = _commit_to_entry(c)
+    diff = ""
+    if repo.is_enabled():
+        try:
+            out = subprocess.run(
+                ["git", "show", "--stat", "--pretty=fuller", sha],
+                cwd=str(root),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            diff = out.stdout or ""
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise HTTPException(status_code=500, detail=f"git show failed: {exc}") from exc
+    return HistoryDetail(**base.model_dump(), diff=diff)
 
-    show = out.stdout or ""
-    # Crude header parse: first line is "commit <sha>".
-    header_lines: list[str] = []
-    body_lines: list[str] = []
-    diff_started = False
-    for line in show.splitlines():
-        if line.startswith("diff --git") or line.startswith(" "):
-            diff_started = True
-        if diff_started:
-            body_lines.append(line)
-        else:
-            header_lines.append(line)
-    return HistoryDetail(
-        sha=sha,
-        subject=next((ln for ln in header_lines if ln and not ln.startswith(("commit ", "Author", "Date", "Commit"))), ""),
-        body="\n".join(header_lines),
-        diff="\n".join(body_lines),
-    )
+
+@router.post("/{sha}/revert", response_model=HistoryDetail)
+def revert_history_entry(
+    notebook_id: str,
+    sha: str,
+    config: Annotated[AppConfig, Depends(get_config)],
+    x_confirm: Annotated[str | None, Header(alias="X-Confirm")] = None,
+) -> HistoryDetail:
+    if (x_confirm or "").lower() != "revert":
+        raise HTTPException(
+            status_code=400,
+            detail="missing X-Confirm: revert header",
+        )
+    root = resolve_notebook_root(notebook_id, config)
+    repo = NotebookRepo(root)
+    if not repo.is_enabled():
+        raise HTTPException(
+            status_code=400,
+            detail="revert unavailable: git is disabled for this notebook",
+        )
+    try:
+        new_sha = repo.revert_op(sha)
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"revert failed: {(exc.stderr or '')[:300]}",
+        ) from exc
+    c = repo.get_commit(new_sha)
+    if c is None:
+        raise HTTPException(status_code=500, detail="revert produced no commit")
+    return HistoryDetail(**_commit_to_entry(c).model_dump(), diff="")
 
 
 __all__ = ["router"]
