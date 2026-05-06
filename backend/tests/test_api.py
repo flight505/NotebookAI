@@ -237,6 +237,121 @@ def test_ask_non_stream_returns_answer(
     data = r.json()
     assert data["answer"] == "42 is the answer"
     assert data["op_id"] == "00000000000000000000000010"
+    assert data["chat_id"]
+
+
+# ---------------------------------------------------------------------------
+# Chats CRUD
+# ---------------------------------------------------------------------------
+
+
+def test_chats_listed_after_ask(
+    client: TestClient, make_notebook, monkeypatch: pytest.MonkeyPatch
+):
+    nb = make_notebook("Chat NB")
+
+    async def fake_query(runtime, root, *, prompt, archive=False):
+        return agent_operations.OperationResult(
+            op="query",
+            op_id="00000000000000000000000030",
+            notebook_id=nb["id"],
+            summary="answer body",
+        )
+
+    monkeypatch.setattr(
+        "notebookai.api.routers.ask.agent_operations.query", fake_query
+    )
+    # Ask without chat_id => fresh chat created.
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/ask",
+        json={"prompt": "first question"},
+    )
+    assert r.status_code == 200, r.text
+    chat_id = r.json()["chat_id"]
+    assert chat_id
+
+    # Ask again with the same chat_id.
+    r2 = client.post(
+        f"/api/notebooks/{nb['id']}/ask",
+        json={"prompt": "follow up", "chat_id": chat_id},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["chat_id"] == chat_id
+
+    # List chats.
+    r3 = client.get(f"/api/notebooks/{nb['id']}/chats")
+    assert r3.status_code == 200
+    chats = r3.json()
+    assert len(chats) == 1
+    assert chats[0]["id"] == chat_id
+    assert chats[0]["message_count"] == 4
+
+    # Load the full chat.
+    r4 = client.get(f"/api/notebooks/{nb['id']}/chats/{chat_id}")
+    assert r4.status_code == 200
+    full = r4.json()
+    assert len(full["messages"]) == 4
+    roles = [m["role"] for m in full["messages"]]
+    assert roles == ["user", "assistant", "user", "assistant"]
+
+
+def test_chat_rename(
+    client: TestClient, make_notebook, monkeypatch: pytest.MonkeyPatch
+):
+    nb = make_notebook("Rename NB")
+
+    async def fake_query(runtime, root, *, prompt, archive=False):
+        return agent_operations.OperationResult(
+            op="query",
+            op_id="00000000000000000000000031",
+            notebook_id=nb["id"],
+            summary="ok",
+        )
+
+    monkeypatch.setattr(
+        "notebookai.api.routers.ask.agent_operations.query", fake_query
+    )
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/ask",
+        json={"prompt": "hi"},
+    )
+    chat_id = r.json()["chat_id"]
+    r2 = client.patch(
+        f"/api/notebooks/{nb['id']}/chats/{chat_id}",
+        json={"title": "Renamed"},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["title"] == "Renamed"
+
+
+def test_chat_delete(
+    client: TestClient, make_notebook, monkeypatch: pytest.MonkeyPatch
+):
+    nb = make_notebook("Delete NB")
+
+    async def fake_query(runtime, root, *, prompt, archive=False):
+        return agent_operations.OperationResult(
+            op="query",
+            op_id="00000000000000000000000032",
+            notebook_id=nb["id"],
+            summary="ok",
+        )
+
+    monkeypatch.setattr(
+        "notebookai.api.routers.ask.agent_operations.query", fake_query
+    )
+    r = client.post(f"/api/notebooks/{nb['id']}/ask", json={"prompt": "x"})
+    chat_id = r.json()["chat_id"]
+    r2 = client.delete(f"/api/notebooks/{nb['id']}/chats/{chat_id}")
+    assert r2.status_code == 204
+    r3 = client.get(f"/api/notebooks/{nb['id']}/chats/{chat_id}")
+    assert r3.status_code == 404
+
+
+def test_chat_get_404(client: TestClient, make_notebook):
+    nb = make_notebook("404 NB")
+    r = client.get(f"/api/notebooks/{nb['id']}/chats/no-such-chat")
+    assert r.status_code == 404
 
 
 def test_ask_stream_returns_sse(
