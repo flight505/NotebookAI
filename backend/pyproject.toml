@@ -27,6 +27,7 @@ dependencies = [
     "readability-lxml>=0.8.1",
     "html2text>=2024.2.26",
     "youtube-transcript-api>=0.6.2",
+    "claude-agent-sdk>=0.1",
 ]
 
 [project.scripts]
@@ -53,3 +54,6 @@ select = ["E", "F", "I", "UP", "B"]
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+markers = [
+    "requires_claude: live test against Claude Agent SDK (skipped by default)",
+]
