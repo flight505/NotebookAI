@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Transformers: An Introduction</title>
+  <meta property="article:published_time" content="2023-09-12T10:00:00Z">
+  <meta name="description" content="A friendly introduction to transformer architectures.">
+</head>
+<body>
+  <header>
+    <nav>Home | About | Contact</nav>
+  </header>
+  <article>
+    <h1>Transformers: An Introduction</h1>
+    <p>This article gives a friendly introduction to the transformer
+    architecture used in modern large language models. We start with
+    the attention mechanism and build up from there.</p>
+    <h2>Self-attention</h2>
+    <p>Self-attention is the core operation. Each token attends to every
+    other token, weighted by a learned similarity. The output is a
+    context-aware representation of the input sequence.</p>
+    <p>Multi-head attention runs several attention operations in parallel,
+    each with its own learned projections. The heads can specialise on
+    different relationships within the sequence.</p>
+    <h2>Feed-forward layers</h2>
+    <p>After attention, each position passes independently through a
+    two-layer MLP. This adds non-linear capacity to the network without
+    introducing further cross-token dependencies.</p>
+    <p>Residual connections and layer normalisation keep the gradients
+    stable during training, which lets us stack many such blocks.</p>
+  </article>
+  <aside>
+    <p>Subscribe to our newsletter for weekly updates!</p>
+  </aside>
+  <footer>
+    <p>This site uses cookies for analytics.</p>
+  </footer>
+</body>
+</html>
