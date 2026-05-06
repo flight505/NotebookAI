@@ -177,8 +177,7 @@ function NotebookRow({
             {notebook.name}
           </span>
           <span className="block text-xs text-muted-foreground truncate">
-            {notebook.stats.wiki_count} articles · {notebook.stats.raw_count}{" "}
-            sources
+            {notebook.article_count} articles · {notebook.chat_count} chats
             {notebook.is_external && " · external"}
           </span>
         </span>

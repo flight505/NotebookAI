@@ -45,9 +45,26 @@ export interface Notebook {
 
 export type NotebookMutable = Pick<Notebook, "name" | "description" | "agent">;
 
-export interface LibraryEntry extends Notebook {
+/**
+ * A library listing entry — matches backend ``NotebookEntry`` from
+ * ``backend/notebookai/library/scanner.py``. This is intentionally a
+ * lighter shape than ``Notebook`` (no ``agent``/``embeddings``) so that
+ * scanning many notebooks stays cheap.
+ */
+export interface LibraryEntry {
+  id: string;
+  name: string;
+  path: string;
+  created_at: string | null;
+  last_op_at: string | null;
+  article_count: number;
+  chat_count: number;
   is_external: boolean;
-  root: string;
+  git_enabled: boolean;
+}
+
+export interface RegisterExternalRequest {
+  path: string;
 }
 
 export interface IngestJob {
@@ -149,6 +166,22 @@ export async function deleteNotebook(id: string): Promise<{ deleted: true }> {
 export async function listLibrary(): Promise<LibraryEntry[]> {
   const { data } = await http.get<LibraryEntry[]>("/library");
   return data;
+}
+
+export async function registerExternalNotebook(
+  path: string
+): Promise<LibraryEntry> {
+  const { data } = await http.post<LibraryEntry>("/library/register", { path });
+  return data;
+}
+
+export async function deregisterExternalNotebook(path: string): Promise<void> {
+  // Use base64url encoding to avoid path-traversal in the URL segment.
+  const encoded = btoa(unescape(encodeURIComponent(path)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  await http.delete(`/library/external/${encoded}`);
 }
 
 export async function ingest(
