@@ -33,11 +33,17 @@ assert_build_md_unchanged() {
 }
 
 run_prior_phase_tests() {
+  # Skip nested recursion: when a phase test calls another phase test,
+  # don't have THAT one re-run all priors again. The outermost gate run
+  # (NOTEBOOKAI_BUILD_NESTED unset) does the cumulative sweep; nested
+  # calls trust the outer caller.
+  if [[ -n "${NOTEBOOKAI_BUILD_NESTED:-}" ]]; then return 0; fi
   local upto="$1"
   local i
   for ((i=0; i<upto; i++)); do
     [[ -x ".notebookai-build/tests/phase-$i.sh" ]] || fail "missing prior test: phase-$i.sh"
-    bash ".notebookai-build/tests/phase-$i.sh" >/dev/null || fail "prior phase $i regressed"
+    NOTEBOOKAI_BUILD_NESTED=1 bash ".notebookai-build/tests/phase-$i.sh" >/dev/null \
+      || fail "prior phase $i regressed"
   done
 }
 
