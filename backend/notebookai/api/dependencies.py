@@ -1,4 +1,9 @@
-"""Shared dependencies for the API: config + DI factories."""
+"""Shared dependencies for the API: config + DI factories.
+
+``AppConfig`` extends :class:`notebookai.config.NotebookAIConfig` so all
+env handling lives in one place. The class adds API-specific helpers
+(``read_config`` / ``write_config``) that the routers depend on.
+"""
 
 from __future__ import annotations
 
@@ -8,32 +13,28 @@ from pathlib import Path
 
 from fastapi import HTTPException
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from notebookai.agent.runtime import AgentRuntime
+from notebookai.config import NotebookAIConfig
 from notebookai.scaffold import NotebookMeta
 
 
-def _default_library_root() -> Path:
-    return Path.home() / "NotebookAI" / "notebooks"
+class AppConfig(NotebookAIConfig):
+    """API configuration. Extends :class:`NotebookAIConfig`.
 
+    Adds an explicit ``config_file`` override for tests and the
+    ``read_config`` / ``write_config`` helpers used by routers to
+    persist ``extra_notebook_roots``.
+    """
 
-class AppConfig(BaseSettings):
-    """API configuration loaded from env (prefix: ``NOTEBOOKAI_``)."""
+    # Optional override for the location of ``config.json``. When ``None``
+    # we derive it from ``library_root.parent / 'config.json'``.
+    config_file: Path | None = Field(default=None)
 
-    model_config = SettingsConfigDict(
-        env_prefix="NOTEBOOKAI_",
-        env_file=None,
-        extra="ignore",
-    )
-
-    library_root: Path = Field(default_factory=_default_library_root)
-    agent_model: str = "claude-sonnet-4-6"
-    agent_lint_model: str = "claude-haiku-4-5-20251001"
-    config_file: Path | None = None  # for ``extra_notebook_roots`` etc.
-
-    def trash_dir(self) -> Path:
-        return self.library_root.parent / ".trash"
+    # Backwards-compat alias used by tests/routers.
+    @property
+    def agent_lint_model(self) -> str:
+        return self.lint_model
 
     def resolved_config_file(self) -> Path:
         return self.config_file or (self.library_root.parent / "config.json")
@@ -72,7 +73,7 @@ def reset_config_cache() -> None:
 @lru_cache(maxsize=1)
 def _cached_runtime() -> AgentRuntime:
     cfg = _cached_config()
-    return AgentRuntime(model=cfg.agent_model, lint_model=cfg.agent_lint_model)
+    return AgentRuntime(model=cfg.agent_model, lint_model=cfg.lint_model)
 
 
 def get_runtime() -> AgentRuntime:

@@ -6,9 +6,11 @@ import logging
 
 import structlog
 
+from notebookai.config import get_config
 
-def _configure_logging() -> None:
-    logging.basicConfig(level=logging.INFO)
+
+def _configure_logging(level: str = "INFO") -> None:
+    logging.basicConfig(level=level)
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
@@ -20,14 +22,15 @@ def _configure_logging() -> None:
 
 def run() -> None:
     """Console-script entry point: ``notebookai-api``."""
-    _configure_logging()
+    config = get_config()
+    _configure_logging(config.log_level)
     import uvicorn
 
     uvicorn.run(
         "notebookai.api.app:create_app",
         factory=True,
-        host="127.0.0.1",
-        port=8765,
+        host=config.api_host,
+        port=config.api_port,
         reload=False,
     )
 

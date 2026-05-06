@@ -225,6 +225,22 @@ class LibraryScanner:
     def scan(self) -> list[NotebookEntry]:
         entries: list[NotebookEntry] = []
 
+        # First-run convenience: create the library root lazily so a fresh
+        # machine just works without the user pre-creating the directory.
+        if not self.library_root.exists():
+            try:
+                self.library_root.mkdir(parents=True, exist_ok=True)
+                log.info(
+                    "library.library_root_created",
+                    path=str(self.library_root),
+                )
+            except OSError as exc:
+                log.warning(
+                    "library.library_root_create_failed",
+                    path=str(self.library_root),
+                    error=str(exc),
+                )
+
         if self.library_root.is_dir():
             for child in sorted(self.library_root.iterdir()):
                 # Skip dotfolders (.trash/, .notebookai/, .DS_Store).

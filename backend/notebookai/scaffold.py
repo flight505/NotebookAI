@@ -150,48 +150,90 @@ def _agents_md(meta: NotebookMeta) -> str:
 
 ## What this is
 
-This is a NotebookAI notebook. The `wiki/` directory is the substrate. `raw/` is
-immutable source material. `chats/` is conversation history. Every agent
-operation should produce exactly one git commit (when `git_enabled=true`).
+This folder is a NotebookAI notebook — a local-first, LLM-maintained knowledge
+base. It has four meaningful subtrees:
 
-## Operating principles
+- `raw/` — immutable source material (PDFs, scraped articles, transcripts).
+  Files land here at ingest time and are never modified afterwards.
+- `wiki/` — compiled knowledge: human-readable markdown articles maintained by
+  the agent. `wiki/index.md` is the top-level table of contents and
+  `wiki/log.md` is the operation log. This is the only tree the agent writes
+  to.
+- `chats/` — conversations with the agent persisted as markdown.
+- `.notebookai/` — derived state (SQLite index, embeddings, locks). Safe to
+  delete; rebuilds on next watcher tick.
 
-- Edit `wiki/` not `raw/`. The `raw/` tree is read-only after ingest.
-- Use the `karpathy-llm-wiki` skill for compile, query, and lint operations.
-- Every op is one commit. The commit message follows the template in
-  `docs/CONTRACTS.md` § GitCommit conventions.
+## How to operate it
 
-## Layout
+The full operating contract lives in `.claude/skills/karpathy-llm-wiki/SKILL.md`
+(also mirrored at `.agents/skills/karpathy-llm-wiki/SKILL.md`). Read it before
+acting. The skill defines three operations:
+
+- **Ingest** — a new file appears under `raw/`; read it, decide whether to
+  extend an existing wiki article or create a new one, write to `wiki/`,
+  refresh `wiki/index.md`, append a line to `wiki/log.md`.
+- **Query** — answer a user question by reading `wiki/index.md`, following
+  wikilinks, and citing sources.
+- **Lint** — fix broken wikilinks, index drift, missing "See also"
+  cross-references; surface heuristic issues for review.
+
+## Conventions
+
+Chat markdown format — chats are markdown files with YAML front-matter and
+`## role · ts` section headers per turn:
 
 ```
-.notebookai/        internal state (safe to delete; rebuilds)
-.claude/skills/     Claude Code skill discovery path
-.agents/skills/     agentskills.io skill discovery path
-raw/                immutable source material
-wiki/               compiled knowledge (LLM-maintained, human-editable)
-  index.md          top-level table of contents
-  log.md            human-readable operation log
-chats/              conversations as markdown
+---
+chat_id: "01H..."
+notebook_id: "{meta.id}"
+---
+## user · 2026-01-01T12:00:00Z
+
+What's the architecture?
+
+## agent · 2026-01-01T12:00:01Z
+
+It's a local-first ...
 ```
 
-## Skill
+Citation format — every factual claim quotes its wiki source via a numbered
+footnote:
 
-The wiki workflow lives in the bundled skill:
+```
+> [^1]: wiki/general/example.md — "the exact phrase that supports the claim"
+```
 
-- `.claude/skills/karpathy-llm-wiki/SKILL.md`
-- `.agents/skills/karpathy-llm-wiki/SKILL.md`
-
-Both paths point to the same bundle. Read it before performing any ingest,
-compile, query, or lint operation against this notebook.
+Wikilinks — internal references use `[[name]]` (resolved against `wiki/**`).
+Front-matter for raw files: `id`, `source_type`, `source_url`, `title`,
+`published`, `collected_at`, `topic`. Front-matter for wiki articles: `title`,
+`tags`, `raw_refs` (list of `raw/...` paths backing the article).
 
 ## Do not edit
 
-The agent must not write to:
+The agent must never write or delete:
 
-- `raw/**` — immutable after ingest
-- `.notebookai/index.db` — derived from filesystem
-- `.notebookai/embeddings.db` — derived from filesystem
-- `.git/**` — managed by the commit workflow
+- `.notebookai/index.db` — derived; rebuilt by the watcher.
+- `.notebookai/embeddings.db` — derived; rebuilt by the watcher.
+- `.notebookai/locks/` — runtime concurrency control.
+- `.git/` — managed by the commit workflow.
+
+The agent owns `wiki/`. It may *read* `raw/` but must never modify, rename, or
+delete files there after ingest.
+
+## Budget invariant
+
+The passive watcher (filesystem → index/embeddings) never spends LLM tokens —
+it runs on local CPU using sentence-transformers. The scheduled lint pass uses
+the cheap Haiku model and is bounded by `agent.lint_budget_tokens_per_day`
+(read from `.notebookai/notebook.json`). If a lint run would exceed the daily
+budget it stops early and resumes the next scheduled tick.
+
+## Cross-CLI
+
+The same skill is installed at `.claude/skills/karpathy-llm-wiki/` (Claude
+Code) and `.agents/skills/karpathy-llm-wiki/` (agentskills.io). Any
+SDK-compatible CLI may operate on this folder — the skill, conventions, and
+"do not edit" list apply identically.
 
 Notebook id: `{meta.id}`
 Created: `{meta.created_at}`
