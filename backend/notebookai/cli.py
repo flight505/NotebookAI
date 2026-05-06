@@ -29,10 +29,10 @@ structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.ERROR),
 )
 
-from notebookai import __version__
-from notebookai.config import get_config
-from notebookai.library.scanner import LibraryScanner
-from notebookai.scaffold import create_notebook
+from notebookai import __version__  # noqa: E402
+from notebookai.config import get_config  # noqa: E402
+from notebookai.library.scanner import LibraryScanner  # noqa: E402
+from notebookai.scaffold import create_notebook  # noqa: E402
 
 app = typer.Typer(
     add_completion=False,

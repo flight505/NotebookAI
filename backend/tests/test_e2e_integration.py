@@ -21,7 +21,6 @@ from notebookai.index.store import IndexStore
 from notebookai.index.watcher import Watcher
 from notebookai.scaffold import create_notebook
 
-
 # Realistic article content the mocked agent will write to wiki/.
 WIKI_ARTICLE_CONTENT = """\
 ---
@@ -50,7 +49,7 @@ class _MockSession:
         self.op_id = "01HE2EFAKEOPID0000000"
         self.notebook_id = self.notebook_root.name
 
-    async def __aenter__(self) -> "_MockSession":
+    async def __aenter__(self) -> _MockSession:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
