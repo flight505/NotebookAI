@@ -7,7 +7,7 @@ deterministic ``FakeEmbedder`` for tests so we never download a model in CI.
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -43,12 +43,12 @@ class Embedder:
     ) -> None:
         self.model_name = model_name
         self.device = device or _auto_device()
-        self._model: Optional["SentenceTransformer"] = None
+        self._model: SentenceTransformer | None = None
         self._dim: int | None = None
 
     # -- internals -------------------------------------------------------
 
-    def _load(self) -> "SentenceTransformer":
+    def _load(self) -> SentenceTransformer:
         if self._model is None:
             from sentence_transformers import SentenceTransformer  # heavy import
 
@@ -101,7 +101,7 @@ class FakeEmbedder:
         i = 0
         counter = 0
         while i < self._dim:
-            digest = hashlib.sha256(f"{text}|{counter}".encode("utf-8")).digest()
+            digest = hashlib.sha256(f"{text}|{counter}".encode()).digest()
             for b in digest:
                 if i >= self._dim:
                     break

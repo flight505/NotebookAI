@@ -21,7 +21,6 @@ from notebookai.api.app import create_app
 from notebookai.api.dependencies import AppConfig
 from notebookai.api.sse import broadcaster
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

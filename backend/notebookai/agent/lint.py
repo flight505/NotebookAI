@@ -23,7 +23,6 @@ from typing import Any, Literal
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
 from ulid import ULID
 
 from notebookai.agent.budget import BudgetExceeded, BudgetTracker

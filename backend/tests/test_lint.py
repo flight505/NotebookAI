@@ -8,16 +8,15 @@ from __future__ import annotations
 import json
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from notebookai.agent.budget import BudgetExceeded, BudgetTracker, TokenBudget
+from notebookai.agent.budget import BudgetTracker
 from notebookai.agent.events import AgentDone
 from notebookai.agent.lint import Finding, LintEngine
 from notebookai.agent.runtime import AgentRuntime
 from notebookai.index.store import IndexStore
-
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -159,8 +158,9 @@ def test_budget_tracker_resets_daily(tmp_path: Path) -> None:
     try:
         bt = BudgetTracker(store, "nb", input_limit=1000, output_limit=200)
         # Inject a fake row dated yesterday — should not count for today's budget.
-        from notebookai.index.schema import LintBudget
         from ulid import ULID as _ULID
+
+        from notebookai.index.schema import LintBudget
 
         yesterday = date.today() - timedelta(days=1)
         with store.session() as s:
@@ -261,8 +261,9 @@ async def test_lint_engine_apply_finding_with_suggested_fix(tmp_path: Path) -> N
     store = _store(nb)
     try:
         # Seed a finding with a suggested fix.
-        from notebookai.index.schema import LintFinding as LFRow
         from ulid import ULID as _ULID
+
+        from notebookai.index.schema import LintFinding as LFRow
 
         fid = str(_ULID())
         with store.session() as s:

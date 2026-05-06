@@ -16,7 +16,6 @@ from notebookai.library import (
 )
 from notebookai.scaffold import create_notebook
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

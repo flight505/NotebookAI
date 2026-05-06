@@ -18,7 +18,6 @@ from notebookai.adapters import (
 )
 from notebookai.adapters.youtube import parse_video_id
 
-
 # ---------------------------------------------------------------------------
 # PDF adapter
 # ---------------------------------------------------------------------------

@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from notebookai.chats import Chat, ChatStore, Citation, Message
+from notebookai.chats import ChatStore, Citation, Message
 
 
 @pytest.fixture

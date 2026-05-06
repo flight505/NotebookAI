@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,7 +35,6 @@ from notebookai.agent.tools import (
     is_path_writable,
 )
 from notebookai.scaffold import create_notebook
-
 
 # ---------------------------------------------------------------------------
 # Bash allowlist

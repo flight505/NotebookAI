@@ -13,9 +13,10 @@ from __future__ import annotations
 import re
 import unicodedata
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import structlog
 from pydantic import BaseModel, Field

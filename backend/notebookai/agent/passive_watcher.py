@@ -119,11 +119,11 @@ class PassiveWatcher:
             self._wiki_corpus[rel] = content
 
     # ------------------------------------------------------------------
-    async def scan(self, notebook_root: Path) -> list["Finding"]:
+    async def scan(self, notebook_root: Path) -> list[Finding]:
         """Full sweep — returns a fresh list of findings (no persistence)."""
         return self._scan_sync(notebook_root)
 
-    def _scan_sync(self, notebook_root: Path) -> list["Finding"]:
+    def _scan_sync(self, notebook_root: Path) -> list[Finding]:
         notebook_root = Path(notebook_root).resolve()
         self._build_wiki_index(notebook_root)
         findings: list[_PassiveFinding] = []
@@ -133,7 +133,7 @@ class PassiveWatcher:
         return [self._to_finding(f) for f in findings]
 
     # ------------------------------------------------------------------
-    def on_event(self, event: Event, notebook_root: Path | None = None) -> list["Finding"]:
+    def on_event(self, event: Event, notebook_root: Path | None = None) -> list[Finding]:
         """Incremental check on a single watcher event.
 
         For wiki events, we re-scan the wiki index then check just the
@@ -293,7 +293,7 @@ class PassiveWatcher:
         return out
 
     # ------------------------------------------------------------------
-    def _to_finding(self, raw: _PassiveFinding) -> "Finding":
+    def _to_finding(self, raw: _PassiveFinding) -> Finding:
         # Local import to avoid the lint <-> passive_watcher cycle at module load.
         from notebookai.agent.lint import Finding
 
@@ -310,7 +310,7 @@ class PassiveWatcher:
         )
 
     # ------------------------------------------------------------------
-    def persist(self, findings: list["Finding"]) -> None:
+    def persist(self, findings: list[Finding]) -> None:
         """Insert each finding into ``lint_findings``. No-op without a store."""
         if not self.store or not findings:
             return
@@ -373,7 +373,7 @@ supervisor = PassiveWatcherSupervisor()
 # ---------------------------------------------------------------------------
 
 
-def _finding_payload(f: "Finding") -> dict[str, Any]:
+def _finding_payload(f: Finding) -> dict[str, Any]:
     return {
         "path": f.path,
         "message": f.message,

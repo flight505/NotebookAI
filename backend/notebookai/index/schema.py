@@ -13,20 +13,21 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Date,
-    Enum as SAEnum,
     Float,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
 
 # ---------------------------------------------------------------------------
 # Enums

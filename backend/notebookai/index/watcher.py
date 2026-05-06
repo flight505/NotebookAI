@@ -21,7 +21,6 @@ from .events import (
     from_path,
 )
 
-
 # Order matches CONTRACTS § FileWatcher events table.
 _EVENT_ORDER = (
     "raw.added",

@@ -27,13 +27,13 @@ from .events import (
 )
 from .schema import (
     Base,
+    ChunkKind,
     EmbeddingChunk,
     LintBudget,
     LintFinding,
     Notebook,
     SourceFile,
     SourceKind,
-    ChunkKind,
 )
 from .store import IndexStore
 from .watcher import Watcher

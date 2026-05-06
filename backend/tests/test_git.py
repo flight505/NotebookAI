@@ -17,7 +17,6 @@ from ulid import ULID
 from notebookai.git import NotebookRepo
 from notebookai.scaffold import create_notebook
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

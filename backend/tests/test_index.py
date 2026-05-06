@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from pathlib import Path
 
-import numpy as np
 import pytest
 from watchfiles import Change
 
@@ -26,7 +24,6 @@ from notebookai.index import (
     WikiAdded,
     from_path,
 )
-
 
 # ---------------------------------------------------------------------------
 # helpers

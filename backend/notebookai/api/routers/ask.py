@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import AsyncIterator
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 

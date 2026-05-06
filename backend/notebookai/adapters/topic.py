@@ -81,7 +81,7 @@ def _tokenize(text: str) -> list[str]:
 
 def pick_topic(
     notebook_root: Path,
-    doc: "RawDocument",
+    doc: RawDocument,
     hint: str | None = None,
 ) -> str:
     """Choose a topic folder name for ``doc``.

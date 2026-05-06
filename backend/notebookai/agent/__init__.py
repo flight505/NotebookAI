@@ -1,12 +1,12 @@
 """Agent package — wraps the Claude Agent SDK runtime for NotebookAI."""
 
 from notebookai.agent.events import (
+    EVENT_NAMES,
     AgentDone,
     AgentError,
     AgentMessage,
     AgentToolCall,
     AgentToolResult,
-    EVENT_NAMES,
     Event,
 )
 from notebookai.agent.operations import (
