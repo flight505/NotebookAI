@@ -1,0 +1,21 @@
+{
+  "include": ["backend"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv",
+    "OpenNotebookLM-master",
+    "karpathy-llm-wiki-main",
+    ".notebookai-build"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "pythonVersion": "3.10",
+      "venvPath": ".",
+      "venv": ".venv",
+      "extraPaths": ["."]
+    }
+  ],
+  "reportMissingImports": "warning"
+}

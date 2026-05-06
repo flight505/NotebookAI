@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "notebookai"
+version = "0.1.0"
+description = "NotebookAI backend — local-first LLM-powered knowledge base."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jesper", email = "jesper_vang@me.com" }]
+dependencies = [
+    "pydantic>=2.5,<3",
+    "sqlalchemy>=2.0,<3",
+    "watchfiles>=0.21",
+    "structlog>=23.2",
+    "typer>=0.12",
+]
+
+[project.scripts]
+notebookai = "notebookai.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.5",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["notebookai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
