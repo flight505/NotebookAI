@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+data/
+models/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+logs/
+*.log
+
+# Node (for frontend)
+node_modules/
+.next/
+out/
+build/
+dist/
+.cache/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Docker
+.dockerignore
+
+# Test output files
+export_test_summary_*.md
+test_output_*.md
+*.test.json
+
+# Project specifications (confidential)
+SPECIFICATION.md
+SPEC*.md
+
+# PyInstaller
+*.spec
+build/
+dist/
+*.manifest
+*.exe
+*.dll
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class

@@ -1,0 +1,54 @@
+# NotebookAI
+
+# Build orchestrator state (committed selectively)
+.notebookai-build/state.json
+.notebookai-build/staging/
+
+# Source-reference dirs are tracked but excluded from typical git operations
+# until Phase 14 (the user decides to archive or delete)
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+.uv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+.turbo/
+out/
+*.tsbuildinfo
+.pnpm-store/
+
+# Tauri
+desktop/src-tauri/target/
+desktop/src-tauri/Cargo.lock
+*.dmg
+*.msi
+*.AppImage
+
+# Notebook runtime data (created when the app runs, not in git)
+data/
+~/NotebookAI/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local env
+.env
+.env.local
+.env.*.local
