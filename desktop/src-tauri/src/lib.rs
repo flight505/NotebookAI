@@ -131,21 +131,28 @@ async fn wait_for_health(timeout: Duration) -> bool {
     let url = format!("http://{}:{}/healthz", BACKEND_HOST, BACKEND_PORT);
     let deadline = std::time::Instant::now() + timeout;
 
+    // ureq is blocking; offload each probe to a tokio blocking thread so we
+    // never stall the async runtime. The probe itself is tens of bytes — the
+    // 500ms-per-attempt cap gives the backend roughly 60 attempts within the
+    // 30s deadline used at startup.
     while std::time::Instant::now() < deadline {
-        // Minimal HTTP probe via std::net so we avoid pulling in reqwest just for this.
-        if let Ok(mut stream) = std::net::TcpStream::connect((BACKEND_HOST, BACKEND_PORT)) {
-            use std::io::{Read, Write};
-            let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-            let req = format!("GET /healthz HTTP/1.0\r\nHost: {}\r\n\r\n", BACKEND_HOST);
-            if stream.write_all(req.as_bytes()).is_ok() {
-                let mut buf = [0u8; 64];
-                if let Ok(n) = stream.read(&mut buf) {
-                    if n > 12 && buf[9] == b'2' {
-                        let _ = url; // keep variable used for clarity
-                        return true;
-                    }
-                }
-            }
+        let probe_url = url.clone();
+        let healthy = tokio::task::spawn_blocking(move || {
+            let agent = ureq::AgentBuilder::new()
+                .timeout_connect(Duration::from_millis(500))
+                .timeout_read(Duration::from_millis(500))
+                .build();
+            agent
+                .get(&probe_url)
+                .call()
+                .map(|resp| resp.status() == 200)
+                .unwrap_or(false)
+        })
+        .await
+        .unwrap_or(false);
+
+        if healthy {
+            return true;
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
@@ -170,10 +177,38 @@ fn apply_vibrancy(_window: &tauri::WebviewWindow) {
     // Linux/Windows: rely on transparent + frontend backdrop. Wayland transparency is best-effort.
 }
 
+/// Install the devtools plugin when the `devtools` Cargo feature is on,
+/// otherwise pass the builder through untouched. The feature is enabled by
+/// `pnpm tauri:dev` (see desktop/package.json) and off in release builds.
+fn install_devtools(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    #[cfg(feature = "devtools")]
+    {
+        builder.plugin(tauri_plugin_devtools::init())
+    }
+    #[cfg(not(feature = "devtools"))]
+    {
+        builder
+    }
+}
+
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
+        // Single-instance must be the FIRST plugin per upstream guidance —
+        // its callback fires when a second `notebookai` invocation tries to
+        // bind, and we use it to focus the existing window instead of
+        // double-spawning the FastAPI backend (which would silently fail to
+        // bind 127.0.0.1:8765).
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_fs::init());
+
+    install_devtools(builder)
         .manage(BackendChild(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![backend_url])
         .setup(|app| {

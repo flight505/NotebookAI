@@ -455,6 +455,12 @@ export function subscribeEvents(
       "ingest.complete",
       "lint.finding",
       "file.changed",
+      // Synthetic backpressure marker. EventSource handles Last-Event-ID
+      // reconnection automatically; consumers should treat receipt of this
+      // event as "your local view is stale" and refetch authoritative state
+      // (article tree, scheduler status, etc.) rather than trusting the
+      // next live event.
+      "stream.gap",
     ];
 
     knownEvents.forEach((evName) => {
