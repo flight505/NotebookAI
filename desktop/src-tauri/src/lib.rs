@@ -1,15 +1,17 @@
 // NotebookAI Tauri 2 desktop shell
 //
-// Spawns the FastAPI backend as a sidecar (via `uv run notebookai-api`),
-// waits for /healthz to return 200, then reveals the main window. Applies
-// macOS vibrancy (Sidebar effect) when available; on Linux/Windows we
-// fall back to a solid background.
+// Spawns the FastAPI backend as a sidecar, waits for /healthz to return 200,
+// then reveals the main window. Prefers the bundled PyInstaller binary
+// (registered as a Tauri sidecar via tauri.conf.json's `bundle.externalBin`).
+// Falls back to `uv run notebookai-api` for the developer loop when no
+// bundled binary is present.
 
+use std::env;
 use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
-use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::process::{Command, CommandChild};
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(target_os = "macos")]
@@ -19,6 +21,7 @@ use tauri::utils::{WindowEffect, WindowEffectState};
 
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_PORT: u16 = 8765;
+const SIDECAR_NAME: &str = "notebookai-api";
 
 struct BackendChild(Mutex<Option<CommandChild>>);
 
@@ -27,22 +30,59 @@ fn backend_url() -> String {
     format!("http://{}:{}", BACKEND_HOST, BACKEND_PORT)
 }
 
-fn spawn_backend(app: &tauri::AppHandle) -> Result<CommandChild, String> {
-    // Phase 12 trade-off: invoke the user's installed `uv` rather than bundling
-    // a Python interpreter. Phase 13/14 will swap this for a PyInstaller binary.
+/// Build the env-var list every backend invocation needs.
+///
+/// We always pin host/port so the Rust shell and the Python process agree on
+/// the URL the webview will hit. ANTHROPIC_API_KEY is forwarded only when the
+/// user has it set in their shell — the wiki-only-mode path handles absence.
+fn backend_env() -> Vec<(String, String)> {
+    let mut env_vars = vec![
+        ("NOTEBOOKAI_API_HOST".to_string(), BACKEND_HOST.to_string()),
+        ("NOTEBOOKAI_API_PORT".to_string(), BACKEND_PORT.to_string()),
+    ];
+    if let Ok(key) = env::var("ANTHROPIC_API_KEY") {
+        if !key.is_empty() {
+            env_vars.push(("ANTHROPIC_API_KEY".to_string(), key));
+        }
+    }
+    env_vars
+}
+
+/// Try the bundled PyInstaller sidecar first; if it isn't on disk (typical
+/// in `pnpm tauri:dev` before anyone has run `python desktop/sidecar/build.py`),
+/// fall back to `uv run`. The fallback keeps the developer loop unchanged.
+fn build_backend_command(app: &tauri::AppHandle) -> Result<Command, String> {
     let shell = app.shell();
-    let cmd = shell
-        .command("uv")
-        .args([
-            "run",
-            "--project",
-            "../../backend",
-            "notebookai-api",
-            "--host",
-            BACKEND_HOST,
-            "--port",
-            &BACKEND_PORT.to_string(),
-        ]);
+    let env_vars = backend_env();
+
+    match shell.sidecar(SIDECAR_NAME) {
+        Ok(cmd) => {
+            let cmd = cmd.envs(env_vars);
+            Ok(cmd)
+        }
+        Err(err) => {
+            eprintln!(
+                "[notebookai] bundled sidecar '{SIDECAR_NAME}' not found ({err}); \
+                 falling back to `uv run --project ../../backend notebookai-api`. \
+                 This is expected during development. To bundle for release, run \
+                 `python desktop/sidecar/build.py`."
+            );
+            let cmd = shell
+                .command("uv")
+                .args([
+                    "run",
+                    "--project",
+                    "../../backend",
+                    "notebookai-api",
+                ])
+                .envs(env_vars);
+            Ok(cmd)
+        }
+    }
+}
+
+fn spawn_backend(app: &tauri::AppHandle) -> Result<CommandChild, String> {
+    let cmd = build_backend_command(app)?;
 
     let (mut rx, child) = cmd
         .spawn()
