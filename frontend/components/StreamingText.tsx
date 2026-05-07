@@ -139,7 +139,7 @@ export function StreamingText({
   className?: string;
 }) {
   return (
-    <span className={className}>
+    <span className={className} data-testid="streaming-text">
       {text}
       {isStreaming && (
         <span

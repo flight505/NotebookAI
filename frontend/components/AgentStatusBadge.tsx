@@ -59,6 +59,8 @@ export function AgentStatusBadge() {
       title={tooltip}
       role="status"
       aria-label={available ? "Claude ready" : "Wiki-only mode"}
+      data-testid="agent-status-badge"
+      data-available={String(available)}
     >
       <span
         className={cn(

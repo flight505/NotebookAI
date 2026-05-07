@@ -70,6 +70,51 @@ jobs:
       - name: Build
         run: pnpm build
 
+  e2e:
+    name: Frontend E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: frontend
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Install Playwright browsers
+        run: pnpm test:e2e:install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run e2e tests
+        run: pnpm test:e2e
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+
   desktop:
     name: Desktop (cargo check)
     runs-on: macos-14

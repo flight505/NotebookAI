@@ -74,6 +74,9 @@ export function FindingCard({ finding, onAccept, onReject }: FindingCardProps) {
           exit={{ opacity: 0, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}
           transition={{ duration: 0.25 }}
           className="rounded-lg border border-border bg-card overflow-hidden"
+          data-testid="finding-card"
+          data-finding-id={finding.id}
+          data-finding-status={finding.status}
         >
           <div className="px-4 py-3 flex items-center gap-2 border-b border-border/60">
             <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-subtle text-foreground/80">
@@ -98,6 +101,7 @@ export function FindingCard({ finding, onAccept, onReject }: FindingCardProps) {
                 variant="accent"
                 disabled={dimmed}
                 onClick={() => handle("accept")}
+                data-testid="finding-accept"
               >
                 <Check className="w-3.5 h-3.5" />
                 Accept
@@ -107,6 +111,7 @@ export function FindingCard({ finding, onAccept, onReject }: FindingCardProps) {
                 variant="outline"
                 disabled={dimmed}
                 onClick={() => handle("reject")}
+                data-testid="finding-reject"
               >
                 <X className="w-3.5 h-3.5" />
                 Reject

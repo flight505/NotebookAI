@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **GitHub Actions CI** — pytest + ruff + pnpm build + cargo check on every PR; Playwright e2e job after the frontend job; sidecar binary build matrix on tag push.
 - **Agent-unavailable graceful degradation** — when Claude credentials are missing, NotebookAI now runs in "wiki-only mode": ingest still saves raw markdown (compile skipped), ask returns retrieval-only answers from the local index, and lint runs the passive watcher only. Surfaced via a top-nav badge, a banner on the ask page, and a new `agent.unavailable` SSE event. See [docs/wiki-only-mode.md](docs/wiki-only-mode.md).
-- **PyInstaller-bundled sidecar** — Tauri desktop now ships a single-file binary embedding Python + all backend deps; users no longer need `uv` installed. CI matrix-builds for macOS arm64/x86_64, Linux x64/arm64, Windows x64 and attaches binaries to GitHub Releases on tag push. Dev loop unchanged: the Tauri shell falls back to `uv run` when the sidecar isn't bundled.
-- **Playwright e2e suite** — 16 browser tests across Read, Ask, Curate, Library modes; ~19s wall-time; deterministic via per-test API mocking (no real backend); 13 components got `data-testid` attributes for selector stability.
+- **Playwright e2e suite** — 16 browser tests across Read, Ask, Curate, Library modes; ~19s wall-time; deterministic via per-test API mocking (no real backend); 13 components got `data-testid` attributes for selector stability. New `pnpm test:e2e` script; CI runs the suite in a dedicated `e2e` job.
 - **Real app icons + brand mark** — bold cream "N" on an ink-blue squircle with a single amber "AI node" accent. Generated from a single Python script ([`desktop/sidecar/generate_icons.py`](desktop/sidecar/generate_icons.py)) that emits every Tauri size, ICNS, ICO, and the web favicon. See [`docs/branding.md`](docs/branding.md).
+
+### Planned
+- PyInstaller-bundled sidecar — Tauri desktop ships without requiring `uv` on the user's machine
 
 ## [0.1.0] — 2026-05-06
 

@@ -54,7 +54,7 @@ export function ChatTranscript({
   ]);
 
   return (
-    <div className={cn("flex flex-col gap-4 px-4 py-6", className)}>
+    <div className={cn("flex flex-col gap-4 px-4 py-6", className)} data-testid="chat-transcript">
       <AnimatePresence initial={false}>
         {messages.map((m) => (
           <motion.div
@@ -62,6 +62,8 @@ export function ChatTranscript({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.16 }}
+            data-testid="chat-message"
+            data-role={m.role}
             className={cn(
               "flex w-full",
               m.role === "user" ? "justify-end" : "justify-start",
@@ -77,6 +79,7 @@ export function ChatTranscript({
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex w-full justify-start"
+          data-testid="streaming-message"
         >
           <div className="max-w-[80ch] rounded-xl bg-card border border-border px-4 py-3 shadow-sm">
             {streaming.text ? (
