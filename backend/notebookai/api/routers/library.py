@@ -15,6 +15,7 @@ from notebookai.library import (
     NotebookEntry,
     load_library_config,
 )
+from notebookai.library.demo import create_demo_notebook
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -39,6 +40,24 @@ def list_library(
     config: Annotated[AppConfig, Depends(get_config)],
 ) -> list[NotebookEntry]:
     return _scanner_for(config).scan()
+
+
+class DemoResponse(BaseModel):
+    notebook: NotebookEntry
+
+
+@router.post("/demo", response_model=DemoResponse)
+def create_demo(
+    config: Annotated[AppConfig, Depends(get_config)],
+) -> DemoResponse:
+    """Scaffold the demo notebook (or return it if it already exists).
+
+    Idempotent: a second call returns the same notebook without
+    erroring or rewriting the on-disk content.
+    """
+    config.library_root.mkdir(parents=True, exist_ok=True)
+    entry = create_demo_notebook(config.library_root)
+    return DemoResponse(notebook=entry)
 
 
 @router.post("/register", response_model=NotebookEntry)

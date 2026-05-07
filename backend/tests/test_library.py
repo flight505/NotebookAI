@@ -8,11 +8,18 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from notebookai.api.app import create_app
+from notebookai.api.dependencies import AppConfig
 from notebookai.library import (
     LibraryScanner,
     load_library_config,
     save_library_config,
+)
+from notebookai.library.demo import (
+    DEMO_NOTEBOOK_ID,
+    create_demo_notebook,
 )
 from notebookai.scaffold import create_notebook
 
@@ -212,6 +219,86 @@ def test_find_by_id(library_root: Path) -> None:
     scanner = LibraryScanner(library_root)
     assert scanner.find_by_id("hello-world") is not None
     assert scanner.find_by_id("not-here") is None
+
+
+# ---------------------------------------------------------------------------
+# Demo notebook
+# ---------------------------------------------------------------------------
+
+
+def test_create_demo_notebook(library_root: Path) -> None:
+    entry = create_demo_notebook(library_root)
+    assert entry.id == DEMO_NOTEBOOK_ID
+    assert entry.name == "Demo Notebook"
+
+    nb_root = Path(entry.path)
+    # Three wiki articles + index + log.
+    welcome = nb_root / "wiki" / "general" / "welcome.md"
+    transformers = nb_root / "wiki" / "ml" / "transformers.md"
+    how_works = nb_root / "wiki" / "general" / "how-this-wiki-works.md"
+    index = nb_root / "wiki" / "index.md"
+    for p in (welcome, transformers, how_works, index):
+        assert p.is_file(), f"missing seeded file: {p}"
+
+    # Each wiki article carries valid YAML-style frontmatter.
+    for p in (welcome, transformers, how_works):
+        text = p.read_text(encoding="utf-8")
+        assert text.startswith("---\n"), f"missing frontmatter: {p}"
+        assert "\n---\n" in text, f"unterminated frontmatter: {p}"
+        assert "title:" in text.split("\n---\n", 1)[0]
+
+    # Sample chat with frontmatter intact.
+    chat_files = list((nb_root / "chats").glob("*.md"))
+    assert len(chat_files) == 1
+    chat_text = chat_files[0].read_text(encoding="utf-8")
+    assert chat_text.startswith("---\n")
+    assert 'chat_id: "demo-getting-started"' in chat_text
+    assert 'model: "demo"' in chat_text
+
+    # Index links to all 3 articles.
+    index_text = index.read_text(encoding="utf-8")
+    for slug in ("welcome", "transformers", "how-this-wiki-works"):
+        assert f"[[{slug}]]" in index_text, f"index missing link to {slug}"
+
+
+def test_demo_notebook_idempotent(library_root: Path) -> None:
+    first = create_demo_notebook(library_root)
+    # Mutate a seeded file to prove the second call doesn't overwrite it.
+    welcome = Path(first.path) / "wiki" / "general" / "welcome.md"
+    welcome.write_text("# Edited\n", encoding="utf-8")
+
+    second = create_demo_notebook(library_root)
+    assert second.id == first.id
+    assert second.path == first.path
+    assert welcome.read_text(encoding="utf-8") == "# Edited\n"
+
+
+def test_api_demo_endpoint(tmp_path: Path) -> None:
+    library_root = tmp_path / "notebooks"
+    library_root.mkdir(parents=True, exist_ok=True)
+    cfg = AppConfig(
+        library_root=library_root,
+        config_file=tmp_path / "config.json",
+    )
+    app = create_app(config=cfg)
+    with TestClient(app) as client:
+        r1 = client.post("/api/library/demo")
+        assert r1.status_code == 200, r1.text
+        body1 = r1.json()
+        assert body1["notebook"]["id"] == DEMO_NOTEBOOK_ID
+        assert body1["notebook"]["name"] == "Demo Notebook"
+
+        # Second call: same id, no error.
+        r2 = client.post("/api/library/demo")
+        assert r2.status_code == 200, r2.text
+        body2 = r2.json()
+        assert body2["notebook"]["id"] == body1["notebook"]["id"]
+        assert body2["notebook"]["path"] == body1["notebook"]["path"]
+
+
+# ---------------------------------------------------------------------------
+# Config round-trip
+# ---------------------------------------------------------------------------
 
 
 def test_config_round_trip(config_path: Path, tmp_path: Path) -> None:

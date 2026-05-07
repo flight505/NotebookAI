@@ -184,6 +184,27 @@ export async function deregisterExternalNotebook(path: string): Promise<void> {
   await http.delete(`/library/external/${encoded}`);
 }
 
+export async function createDemoNotebook(): Promise<LibraryEntry> {
+  const { data } = await http.post<{ notebook: LibraryEntry }>(
+    "/library/demo",
+    {}
+  );
+  return data.notebook;
+}
+
+/**
+ * Convenience namespace re-exporting the library-related endpoints under
+ * a `library.*` shape. The welcome flow uses this for ergonomics; older
+ * call sites continue to use the top-level functions.
+ */
+export const library = {
+  list: listLibrary,
+  createNotebook,
+  createDemoNotebook,
+  registerExternal: registerExternalNotebook,
+  deregisterExternal: deregisterExternalNotebook,
+};
+
 export async function ingest(
   notebookId: string,
   kind: "url" | "youtube",
