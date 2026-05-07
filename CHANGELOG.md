@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] — v0.2 milestone
 
 ### Added
+- **First-run welcome flow with demo notebook option.** New `/welcome` route guides fresh users through a 3-step onboarding (pitch → choose setup → verify Claude availability) with a hand-seeded demo notebook (3 wiki articles + 1 chat) reachable via `POST /api/library/demo`.
 - **GitHub Actions CI** — pytest + ruff + pnpm build + cargo check on every PR; Playwright e2e job after the frontend job; sidecar binary build matrix on tag push.
 - **Scheduled lint cron** — per-notebook hourly Haiku lint with idle detection and token-budget gating; UI shows next-run countdown.
 - **Agent-unavailable graceful degradation** — when Claude credentials are missing, NotebookAI now runs in "wiki-only mode": ingest still saves raw markdown (compile skipped), ask returns retrieval-only answers from the local index, and lint runs the passive watcher only. Surfaced via a top-nav badge, a banner on the ask page, and a new `agent.unavailable` SSE event. See [docs/wiki-only-mode.md](docs/wiki-only-mode.md).
