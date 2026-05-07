@@ -17,10 +17,12 @@ from notebookai.agent import operations as agent_operations
 from notebookai.agent.budget import BudgetTracker
 from notebookai.agent.lint import LintEngine
 from notebookai.agent.runtime import AgentRuntime
+from notebookai.agent.scheduler import LintScheduler, SchedulerStatus
 from notebookai.api.dependencies import (
     AppConfig,
     get_config,
     get_runtime,
+    get_scheduler,
     resolve_notebook_root,
 )
 from notebookai.api.sse import broadcaster
@@ -260,6 +262,70 @@ def update_budget(
         return BudgetOut(**snap.model_dump())
     finally:
         store.close()
+
+
+# ---------------------------------------------------------------------------
+# Schedule endpoints
+# ---------------------------------------------------------------------------
+
+
+class ScheduleUpdate(BaseModel):
+    enabled: bool | None = None
+    interval_minutes: int | None = Field(default=None, ge=1)
+
+
+@router.get("/schedule", response_model=SchedulerStatus)
+def read_schedule(
+    notebook_id: str,
+    config: Annotated[AppConfig, Depends(get_config)],
+    scheduler: Annotated[LintScheduler, Depends(get_scheduler)],
+) -> SchedulerStatus:
+    # 404-on-missing parity with other endpoints.
+    resolve_notebook_root(notebook_id, config)
+    return scheduler.status(notebook_id)
+
+
+@router.post("/schedule", response_model=SchedulerStatus)
+def update_schedule(
+    notebook_id: str,
+    body: ScheduleUpdate,
+    config: Annotated[AppConfig, Depends(get_config)],
+    scheduler: Annotated[LintScheduler, Depends(get_scheduler)],
+) -> SchedulerStatus:
+    root = resolve_notebook_root(notebook_id, config)
+    meta_path = root / ".notebookai" / "notebook.json"
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    agent_cfg = dict(meta.get("agent") or {})
+    if body.enabled is not None:
+        agent_cfg["lint_schedule_enabled"] = bool(body.enabled)
+    if body.interval_minutes is not None:
+        agent_cfg["lint_schedule_interval_minutes"] = int(body.interval_minutes)
+    meta["agent"] = agent_cfg
+    try:
+        meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    return scheduler.update_settings(
+        notebook_id,
+        enabled=body.enabled,
+        interval_minutes=body.interval_minutes,
+    )
+
+
+@router.post("/run-now", response_model=SchedulerStatus)
+def run_now(
+    notebook_id: str,
+    config: Annotated[AppConfig, Depends(get_config)],
+    scheduler: Annotated[LintScheduler, Depends(get_scheduler)],
+) -> SchedulerStatus:
+    resolve_notebook_root(notebook_id, config)
+    scheduler.trigger_now(notebook_id)
+    return scheduler.status(notebook_id)
 
 
 __all__ = ["router"]

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from notebookai.api.dependencies import AppConfig, get_config
+from notebookai.api.dependencies import AppConfig, get_config, get_scheduler
 from notebookai.api.routers import (
     articles,
     ask,
@@ -28,11 +30,23 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Start/stop the per-notebook lint scheduler with the app process."""
+    scheduler = get_scheduler()
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.stop()
+
+
 def create_app(*, config: AppConfig | None = None) -> FastAPI:
     """Build a FastAPI app instance."""
     app = FastAPI(
         title="NotebookAI",
         version="0.1.0",
+        lifespan=_lifespan,
     )
 
     if config is not None:

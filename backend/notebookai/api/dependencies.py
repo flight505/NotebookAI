@@ -65,9 +65,10 @@ def get_config() -> AppConfig:
 
 
 def reset_config_cache() -> None:
-    """Test helper: clear the cached AppConfig + Runtime."""
+    """Test helper: clear the cached AppConfig + Runtime + Scheduler."""
     _cached_config.cache_clear()
     _cached_runtime.cache_clear()
+    _cached_scheduler.cache_clear()
 
 
 @lru_cache(maxsize=1)
@@ -79,6 +80,21 @@ def _cached_runtime() -> AgentRuntime:
 def get_runtime() -> AgentRuntime:
     """FastAPI dependency: returns the cached AgentRuntime."""
     return _cached_runtime()
+
+
+@lru_cache(maxsize=1)
+def _cached_scheduler():
+    # Local import to avoid a top-level cycle (scheduler imports
+    # ``api.sse.broadcaster`` which imports agent.events).
+    from notebookai.agent.scheduler import LintScheduler
+
+    cfg = _cached_config()
+    return LintScheduler(_cached_runtime(), cfg.library_root)
+
+
+def get_scheduler():
+    """FastAPI dependency: returns the cached LintScheduler."""
+    return _cached_scheduler()
 
 
 def resolve_notebook_root(notebook_id: str, config: AppConfig) -> Path:
@@ -104,6 +120,7 @@ __all__ = [
     "AppConfig",
     "get_config",
     "get_runtime",
+    "get_scheduler",
     "reset_config_cache",
     "resolve_notebook_root",
     "get_notebook_meta",

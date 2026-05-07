@@ -122,6 +122,73 @@ class AgentError:
 
 
 @dataclass
+class LintScheduled:
+    """`lint.scheduled` — fired when the scheduler picks up a tick."""
+
+    _event_name: ClassVar[str] = "lint.scheduled"
+
+    notebook_id: str
+    op_id: str
+    scheduled_at: str  # RFC3339 UTC
+    reason: Literal["interval", "manual"] = "interval"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "notebook_id": self.notebook_id,
+            "op_id": self.op_id,
+            "scheduled_at": self.scheduled_at,
+            "reason": self.reason,
+        }
+
+
+@dataclass
+class LintSkipped:
+    """`lint.skipped` — fired when a scheduled tick decides not to run."""
+
+    _event_name: ClassVar[str] = "lint.skipped"
+
+    notebook_id: str
+    op_id: str
+    reason: Literal[
+        "idle",
+        "budget_exhausted",
+        "claude_unavailable_no_findings",
+        "already_running",
+    ]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "notebook_id": self.notebook_id,
+            "op_id": self.op_id,
+            "reason": self.reason,
+        }
+
+
+@dataclass
+class LintRunComplete:
+    """`lint.run_complete` — top-level summary at the end of a scheduled run."""
+
+    _event_name: ClassVar[str] = "lint.run_complete"
+
+    notebook_id: str
+    op_id: str
+    finding_count: int
+    tokens_used: int
+    duration_ms: int
+    mode: Literal["haiku", "passive_only"]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "notebook_id": self.notebook_id,
+            "op_id": self.op_id,
+            "finding_count": self.finding_count,
+            "tokens_used": self.tokens_used,
+            "duration_ms": self.duration_ms,
+            "mode": self.mode,
+        }
+
+
+@dataclass
 class AgentUnavailable:
     """`agent.unavailable` — fired at the start of a degraded (wiki-only) op.
 
@@ -154,6 +221,9 @@ Event = Union[
     AgentDone,
     AgentError,
     AgentUnavailable,
+    LintScheduled,
+    LintSkipped,
+    LintRunComplete,
 ]
 
 
@@ -164,6 +234,9 @@ EVENT_NAMES: dict[type, str] = {
     AgentDone: AgentDone._event_name,
     AgentError: AgentError._event_name,
     AgentUnavailable: AgentUnavailable._event_name,
+    LintScheduled: LintScheduled._event_name,
+    LintSkipped: LintSkipped._event_name,
+    LintRunComplete: LintRunComplete._event_name,
 }
 
 
@@ -174,6 +247,9 @@ __all__ = [
     "AgentDone",
     "AgentError",
     "AgentUnavailable",
+    "LintScheduled",
+    "LintSkipped",
+    "LintRunComplete",
     "Event",
     "EVENT_NAMES",
     "OpName",

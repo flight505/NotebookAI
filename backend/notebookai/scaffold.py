@@ -35,6 +35,8 @@ class AgentConfig(BaseModel):
     lint_model: str = "claude-haiku-4-5-20251001"
     lint_schedule: Literal["hourly", "daily", "off"] = "hourly"
     lint_budget_tokens_per_day: int = Field(default=50000, ge=0)
+    lint_schedule_enabled: bool = True
+    lint_schedule_interval_minutes: int = Field(default=60, ge=1)
 
 
 class EmbeddingsConfig(BaseModel):
