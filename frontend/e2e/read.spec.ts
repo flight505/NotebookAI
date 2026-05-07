@@ -5,20 +5,6 @@ import {
   seedNotebookState,
 } from "./fixtures/api-mocks";
 
-/**
- * Known issue: rendering an article via ReactMarkdown crashes with
- *   "Cannot use 'in' operator to search for 'children' in undefined"
- * because `lib/remarkWikilinks.ts` returns its transformer directly
- * instead of a plugin factory. The crash is independent of article
- * content and brings down the whole /read page.
- *
- * Tests below avoid triggering the crash by using `articles=[]` (so
- * `getArticle` 404s and ArticleReader stays in its non-rendering
- * placeholder), or by asserting on UI state that does not require
- * ArticleReader to render content. A separate task tracks fixing the
- * underlying plugin shape.
- */
-
 test.describe("Read mode", () => {
   test.beforeEach(async ({ page }) => {
     await seedNotebookState(page);
@@ -33,51 +19,40 @@ test.describe("Read mode", () => {
   });
 
   test("selects an article and renders markdown", async ({ page }) => {
-    // Use a fixture with the target article available so the GET succeeds.
-    // To avoid the wikilinks-plugin crash, use a fixture without selecting
-    // the article via URL — verify the click triggers a navigation that
-    // sets ?article=... on the URL. Article-body assertions are covered
-    // by the "selects an article" portion (URL change) here, since the
-    // body render is blocked by the unrelated remarkWikilinks bug.
-    const fixtures = await mockBackend(page);
+    await mockBackend(page);
     await page.goto("/read");
     await expect(page.getByTestId("article-tree")).toBeVisible();
     await page
       .getByTestId("article-tree-button-ml/transformers.md")
       .click();
-    // Click triggers a route push to /read?article=ml/transformers.md.
     await expect(page).toHaveURL(/article=ml.*transformers\.md/);
-    // Assert the article fetch was issued.
-    await expect.poll(() =>
-      fixtures.recorded!.find(
-        (r) =>
-          r.method === "GET" &&
-          r.url.includes("/articles/ml/transformers.md") &&
-          !r.url.endsWith("/backlinks"),
-      ),
-    ).toBeTruthy();
+
+    const reader = page.getByTestId("article-reader");
+    await expect(reader).toHaveAttribute("data-article-path", "ml/transformers.md");
+    await expect(page.getByTestId("article-title")).toHaveText("Transformers");
+    await expect(page.getByTestId("article-body")).toContainText(
+      "Transformers are a neural network architecture introduced in 2017.",
+    );
   });
 
   test("wikilinks navigate within the wiki", async ({ page }) => {
-    // The wikilink-rendering path runs through ReactMarkdown which is
-    // currently broken (see file-level comment). Verify the underlying
-    // navigation contract instead: clicking a tree item with a wiki-relative
-    // path lands on /read?article=<path>, which is the same handler
-    // wikilinks invoke. We assert one navigation per fresh page load to
-    // avoid the post-render crash unmounting the tree.
     await mockBackend(page);
-    await page.goto("/read");
-    await page
-      .getByTestId("article-tree-button-ml/attention.md")
-      .click();
+    await page.goto("/read?article=ml%2Ftransformers.md");
+    await expect(page.getByTestId("article-body")).toBeVisible();
+
+    // The body links to [[attention]] and [[ml/embeddings]]; both resolve
+    // to existing articles. Existing wikilinks render with class "wikilink"
+    // and href=/read?article=<path>, and clicking them calls onNavigate.
+    const attentionLink = page
+      .getByTestId("article-body")
+      .locator("a.wikilink", { hasText: "attention" });
+    await expect(attentionLink).toBeVisible();
+    await attentionLink.click();
     await expect(page).toHaveURL(/article=ml.*attention\.md/);
+    await expect(page.getByTestId("article-title")).toHaveText("Attention");
   });
 
   test("shows backlinks panel header", async ({ page }) => {
-    // The Backlinks panel renders the literal text "Backlinks" in the
-    // right-rail header whenever an article isn't loaded — when graph view
-    // is off (the default), the header shows "Backlinks" + a button to
-    // toggle. ArticleReader's empty placeholder doesn't crash.
     await mockBackend(page);
     await page.goto("/read");
     await expect(page.getByText("Backlinks").first()).toBeVisible();
