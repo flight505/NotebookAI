@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ActivityStream } from "@/components/ActivityStream";
 import { FindingCard, type FindingShape } from "@/components/FindingCard";
 import { BudgetMeter } from "@/components/BudgetMeter";
+import { LintScheduleIndicator } from "@/components/LintScheduleIndicator";
 import { LintLog } from "@/components/LintLog";
 import { cn } from "@/lib/cn";
 
@@ -196,6 +197,7 @@ function CurateShell() {
         "border-l border-border bg-card/40 overflow-y-auto p-4 space-y-6",
       )}>
         <BudgetMeter notebookId={notebookId} />
+        <LintScheduleIndicator notebookId={notebookId} />
         <LintLog notebookId={notebookId} />
       </aside>
     </div>

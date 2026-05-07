@@ -276,6 +276,49 @@ export async function lint(
   return data;
 }
 
+export interface LintScheduleStatus {
+  notebook_id: string;
+  enabled: boolean;
+  interval_minutes: number;
+  last_run_at: number | null;
+  next_run_at: number | null;
+  last_result: "ran" | "skipped" | "error" | null;
+  last_skip_reason: string | null;
+  last_finding_count: number | null;
+  idle: boolean;
+  running: boolean;
+}
+
+export async function getLintSchedule(
+  notebookId: string
+): Promise<LintScheduleStatus> {
+  const { data } = await http.get<LintScheduleStatus>(
+    `/notebooks/${notebookId}/lint/schedule`
+  );
+  return data;
+}
+
+export async function updateLintSchedule(
+  notebookId: string,
+  body: { enabled?: boolean; interval_minutes?: number }
+): Promise<LintScheduleStatus> {
+  const { data } = await http.post<LintScheduleStatus>(
+    `/notebooks/${notebookId}/lint/schedule`,
+    body
+  );
+  return data;
+}
+
+export async function triggerLintNow(
+  notebookId: string
+): Promise<LintScheduleStatus> {
+  const { data } = await http.post<LintScheduleStatus>(
+    `/notebooks/${notebookId}/lint/run-now`,
+    {}
+  );
+  return data;
+}
+
 export async function listLintFindings(
   notebookId: string,
   status?: "open" | "resolved"
