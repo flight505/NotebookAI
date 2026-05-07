@@ -14,8 +14,23 @@ pnpm tauri:dev
 `pnpm tauri:dev`:
 1. Tauri runs `cd ../../frontend && pnpm dev` (Next.js dev server on :3000)
 2. Tauri compiles the Rust shell and opens the main window
-3. The shell spawns `uv run --project ../../backend notebookai-api` on `127.0.0.1:8765`
+3. The shell looks up the bundled PyInstaller sidecar; if not present, it falls back to `uv run --project ../../backend notebookai-api` on `127.0.0.1:8765`
 4. Once `/healthz` returns 200, the window is shown and a `notebookai-ready` event is emitted
+
+## Backend sidecar
+
+For end-user installers we ship a single-file PyInstaller binary so users don't need `uv` (or any Python install). For local development, the Rust shell automatically falls back to `uv run` when no bundled binary is found.
+
+- **Pre-built binaries** are downloaded from the GitHub Release on tag push (see `.github/workflows/build-sidecar.yml`).
+- **To build locally** (e.g. before `pnpm tauri:build`):
+
+  ```bash
+  uv run --project ../backend python sidecar/build.py
+  ```
+
+  Output lands at `src-tauri/binaries/notebookai-api-<rust-target-triple>` — exactly where Tauri's `bundle.externalBin` looks. See `sidecar/README.md` for size expectations (200-400 MB) and per-platform notes.
+
+- On macOS the binary is currently **unsigned**; first launch from a downloaded DMG requires `xattr -dr com.apple.quarantine /Applications/NotebookAI.app`.
 
 ## Production builds
 
@@ -50,11 +65,9 @@ Bundle targets configured in `tauri.conf.json`:
 - The frontend talks to the backend via plain HTTP, identical to running `pnpm dev` against a separately-launched backend. The CSP in `tauri.conf.json` allows only `connect-src` to `localhost:8765`.
 - The Rust shell exposes a single `backend_url` Tauri command for sanity, but the frontend does not need it.
 
-## Sidecar trade-off
+## Sidecar history
 
-For Phase 12 we shell out to the user's `uv` binary rather than bundling Python. Pros: tiny shell, fast iteration. Cons: requires `uv` installed (`brew install uv` on macOS, or follow https://docs.astral.sh/uv/).
-
-A future phase will replace this with a self-contained Python binary (PyInstaller or `briefcase`) so the shipped `.dmg`/`.msi`/`.deb` works without `uv`. The TODO lives in `src-tauri/src/lib.rs::spawn_backend`.
+Phase 12 shipped without a bundled Python — the Rust shell shelled out to the user's `uv`. v0.2 introduced the PyInstaller bundle (see "Backend sidecar" above). The dev-loop fallback to `uv run` is preserved so you don't need to rebuild PyInstaller for every backend change; install `uv` (`brew install uv` or https://docs.astral.sh/uv/) if you don't have it.
 
 ## Vibrancy / window chrome
 

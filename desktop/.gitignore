@@ -1,3 +1,11 @@
 node_modules/
 src-tauri/target/
 src-tauri/gen/
+
+# PyInstaller sidecar artefacts — built per-platform via CI, never committed.
+sidecar/dist/
+sidecar/build/
+sidecar/*.spec.bak
+sidecar/_entry.py
+sidecar/build-manifest.json
+src-tauri/binaries/

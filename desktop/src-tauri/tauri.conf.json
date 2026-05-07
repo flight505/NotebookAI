@@ -41,6 +41,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "externalBin": ["binaries/notebookai-api"],
     "category": "Productivity",
     "shortDescription": "NotebookAI desktop",
     "longDescription": "NotebookAI: a local-first notebook with retrieval-augmented chat."
