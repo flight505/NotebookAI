@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -97,6 +98,12 @@ class _NotebookState:
 
 
 _TRIGGER_DEBOUNCE_S = 0.1
+
+# Plus/minus jitter applied to every scheduled-tick sleep so N notebooks
+# don't all wake on the same boundary. ±10% spreads the herd far enough to
+# de-cluster the per-tick BudgetTracker / Haiku call without meaningfully
+# changing the user-perceived cadence.
+_JITTER_FRACTION = 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +302,10 @@ class LintScheduler:
             while not self._stopped:
                 meta = self._read_meta(root)
                 self._refresh_state_from_meta(st, meta)
-                interval_s = max(1.0, st.interval_minutes * 60.0)
+                base_interval_s = max(1.0, st.interval_minutes * 60.0)
+                # ±10% jitter — see _JITTER_FRACTION docstring above.
+                jitter = random.uniform(-_JITTER_FRACTION, _JITTER_FRACTION)
+                interval_s = base_interval_s * (1.0 + jitter)
 
                 # Wait for either the interval or an explicit trigger.
                 trigger_task = asyncio.create_task(st.trigger_event.wait())

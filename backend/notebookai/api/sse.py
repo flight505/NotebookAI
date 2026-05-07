@@ -185,6 +185,15 @@ class EventBroadcaster:
             except Exception:  # noqa: BLE001
                 continue
 
+    async def close_all_subscribers(self) -> None:
+        """Disconnect every active subscriber on every channel.
+
+        Called from the FastAPI lifespan exit so an SSE client that is mid-
+        stream gets a clean EOF instead of a connection reset on shutdown.
+        """
+        for notebook_id in list(self._channels.keys()):
+            await self.close_subscribers(notebook_id)
+
 
 _SENTINEL_DISCONNECT = object()
 

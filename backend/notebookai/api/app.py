@@ -7,18 +7,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from notebookai.api.dependencies import AppConfig, get_config, get_scheduler
+from notebookai.api.dependencies import (
+    AppConfig,
+    dispose_caches,
+    get_config,
+    get_runtime,
+    get_scheduler,
+)
 from notebookai.api.routers import (
     articles,
     ask,
     events,
     history,
     ingest,
+    internal,
     library,
     lint,
     log,
     notebooks,
 )
+from notebookai.api.sse import broadcaster
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -32,13 +40,30 @@ CORS_ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    """Start/stop the per-notebook lint scheduler with the app process."""
+    """Own the runtime / scheduler / broadcaster for the lifetime of the app.
+
+    Singletons are mirrored on ``app.state`` so the ``/api/internal/state``
+    endpoint and tests can introspect them without relying on the module-level
+    ``lru_cache``. On shutdown we stop the scheduler, drain SSE subscribers,
+    and dispose the caches so a follow-up boot in the same process (e.g.
+    pytest's repeated TestClient lifespans) never reuses a stale instance.
+    """
+    runtime = get_runtime()
     scheduler = get_scheduler()
+    app.state.runtime = runtime
+    app.state.scheduler = scheduler
+    app.state.broadcaster = broadcaster
     scheduler.start()
     try:
         yield
     finally:
-        scheduler.stop()
+        try:
+            scheduler.stop()
+        finally:
+            try:
+                await broadcaster.close_all_subscribers()
+            finally:
+                dispose_caches()
 
 
 def create_app(*, config: AppConfig | None = None) -> FastAPI:
@@ -68,7 +93,7 @@ def create_app(*, config: AppConfig | None = None) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    # Mount the nine routers under /api.
+    # Mount the routers under /api.
     app.include_router(notebooks.router, prefix="/api")
     app.include_router(library.router, prefix="/api")
     app.include_router(ingest.router, prefix="/api")
@@ -78,6 +103,7 @@ def create_app(*, config: AppConfig | None = None) -> FastAPI:
     app.include_router(log.router, prefix="/api")
     app.include_router(history.router, prefix="/api")
     app.include_router(events.router, prefix="/api")
+    app.include_router(internal.router, prefix="/api")
 
     return app
 

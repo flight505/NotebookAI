@@ -447,3 +447,70 @@ async def test_lifespan_starts_and_stops(
 # decorates pytest_asyncio APIs.
 _ = AsyncIterator
 _ = scheduler_module
+
+
+# ---------------------------------------------------------------------------
+# Jitter — sleep duration is randomised within ±10% (PR-2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_scheduler_sleep_jitter_in_range(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The per-notebook loop must spread interval ticks via random jitter
+    so N notebooks don't wake on the same boundary.
+
+    We capture every call to ``asyncio.sleep`` made by the loop, drive a
+    handful of ticks via the trigger event, and assert the captured durations
+    span ±10% of nominal and are never identical.
+    """
+    import notebookai.agent.scheduler as sched_mod
+
+    sleeps: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def _capture_sleep(seconds: float, *args, **kwargs):
+        # Record only the loop's interval sleep — debounce-style microsleeps
+        # would skew the sample. The loop sleeps for tens-of-seconds at the
+        # 60-min default interval, so cap the threshold low and short-circuit.
+        if seconds > 0.5:
+            sleeps.append(seconds)
+            # Don't actually sleep that long during tests.
+            return
+        await real_sleep(seconds, *args, **kwargs)
+
+    monkeypatch.setattr(sched_mod.asyncio, "sleep", _capture_sleep)
+
+    # Build a notebook + scheduler, manually advance the loop a few times.
+    nb_root = tmp_path / "nb"
+    nb_root.mkdir()
+    (nb_root / ".notebookai").mkdir()
+    (nb_root / ".notebookai" / "notebook.json").write_text(
+        json.dumps({"id": "nb", "name": "n"}), encoding="utf-8"
+    )
+    (nb_root / "wiki").mkdir()
+    (nb_root / "raw").mkdir()
+
+    runtime = scheduler_module.AgentRuntime(model="m", lint_model="l")
+    sched = scheduler_module.LintScheduler(
+        runtime, tmp_path, default_interval_minutes=1
+    )
+    sched.start()
+    try:
+        # Spawn the per-notebook task by reading status.
+        sched.status("nb")
+        # Yield enough times for the loop to enter its sleep + we record
+        # multiple jittered durations.
+        for _ in range(50):
+            await real_sleep(0)
+            if len(sleeps) >= 5:
+                break
+    finally:
+        sched.stop()
+
+    assert len(sleeps) >= 3, f"expected ≥3 captured sleeps, got {len(sleeps)}"
+    nominal = 60.0  # 1 minute interval × 60s
+    for s in sleeps:
+        assert 0.9 * nominal <= s <= 1.1 * nominal, f"sleep {s}s outside ±10%"
+    assert len(set(sleeps)) > 1, "sleeps were all identical — jitter not applied"

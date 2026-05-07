@@ -739,3 +739,41 @@ def test_events_stream_keepalive(app_config: AppConfig):
     finally:
         server.should_exit = True
         thread.join(timeout=2)
+
+
+# ---------------------------------------------------------------------------
+# /api/internal/state — process introspection (PR-2)
+# ---------------------------------------------------------------------------
+
+
+def test_internal_state_snapshot(client: TestClient, make_notebook) -> None:
+    """The introspection endpoint exposes runtime/scheduler/broadcaster state.
+
+    Verifies the three top-level keys exist and the runtime payload reflects
+    the configured agent model — enough to confirm the lifespan populated
+    ``app.state`` correctly.
+    """
+    r = client.get("/api/internal/state")
+    assert r.status_code == 200, r.text
+    payload = r.json()
+
+    assert set(payload.keys()) == {"runtime", "scheduler", "broadcaster"}
+
+    runtime = payload["runtime"]
+    assert runtime, "runtime block should be populated by the lifespan"
+    assert "model" in runtime
+    assert "lint_model" in runtime
+    assert isinstance(runtime["credentials_available"], bool)
+
+    scheduler = payload["scheduler"]
+    assert "default_interval_minutes" in scheduler
+    assert "notebooks" in scheduler
+
+    # Touching the scheduler for a notebook should make it appear in the snapshot.
+    nb = make_notebook(name="snapshot test")
+    nb_id = nb["id"]
+    client.get(f"/api/notebooks/{nb_id}/lint/schedule")  # spawns the per-nb task
+
+    r2 = client.get("/api/internal/state")
+    assert r2.status_code == 200
+    assert nb_id in r2.json()["scheduler"]["notebooks"]
