@@ -5,19 +5,33 @@ All notable changes to NotebookAI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.2 milestone
-
-### Added
-- **First-run welcome flow with demo notebook option.** New `/welcome` route guides fresh users through a 3-step onboarding (pitch → choose setup → verify Claude availability) with a hand-seeded demo notebook (3 wiki articles + 1 chat) reachable via `POST /api/library/demo`.
-- **GitHub Actions CI** — pytest + ruff + pnpm build + cargo check on every PR; Playwright e2e job after the frontend job; sidecar binary build matrix on tag push.
-- **Scheduled lint cron** — per-notebook hourly Haiku lint with idle detection and token-budget gating; UI shows next-run countdown.
-- **Agent-unavailable graceful degradation** — when Claude credentials are missing, NotebookAI now runs in "wiki-only mode": ingest still saves raw markdown (compile skipped), ask returns retrieval-only answers from the local index, and lint runs the passive watcher only. Surfaced via a top-nav badge, a banner on the ask page, and a new `agent.unavailable` SSE event. See [docs/wiki-only-mode.md](docs/wiki-only-mode.md).
-- **Playwright e2e suite** — 16 browser tests across Read, Ask, Curate, Library modes; ~19s wall-time; deterministic via per-test API mocking (no real backend); 13 components got `data-testid` attributes for selector stability. New `pnpm test:e2e` script; CI runs the suite in a dedicated `e2e` job.
-- **Real app icons + brand mark** — bold cream "N" on an ink-blue squircle with a single amber "AI node" accent. Generated from a single Python script ([`desktop/sidecar/generate_icons.py`](desktop/sidecar/generate_icons.py)) that emits every Tauri size, ICNS, ICO, and the web favicon. See [`docs/branding.md`](docs/branding.md).
-- **PyInstaller-bundled sidecar** — the Tauri desktop app now ships a single-file backend binary (`desktop/sidecar/build.py` produces `notebookai-api-<rust-target-triple>`), so end-users no longer need `uv` installed. Tauri picks up the binary via `bundle.externalBin`; the Rust shell falls back to `uv run` for the developer loop when no bundled binary is present. CI matrix in `.github/workflows/build-sidecar.yml` builds for macOS arm64/x64, Linux x64/arm64, and Windows x64.
+## [Unreleased]
 
 ### Planned
 - macOS codesigning + notarization for the bundled sidecar
+- Hugging Face model pre-baking into the sidecar bundle
+- Wider Tauri test coverage beyond `cargo check`
+
+## [0.2.0] — 2026-05-07
+
+Six features that take NotebookAI from "build complete" to "feels like a product." All shipped through isolated subagents under strict input/output contracts (per BUILD.md discipline) and merged via squash-PR with green CI.
+
+### Added
+- **First-run welcome flow with demo notebook option** — new `/welcome` route guides fresh users through a 3-step onboarding (pitch → choose setup → verify Claude availability) with a hand-seeded demo notebook (3 wiki articles + 1 chat) reachable via `POST /api/library/demo`.
+- **GitHub Actions CI** — pytest + ruff + pnpm build + cargo check on every PR; Playwright e2e job after the frontend job; sidecar binary build matrix on tag push.
+- **Scheduled lint cron** — per-notebook hourly Haiku lint with idle detection and token-budget gating; UI shows next-run countdown.
+- **Agent-unavailable graceful degradation** — when Claude credentials are missing, NotebookAI now runs in "wiki-only mode": ingest still saves raw markdown (compile skipped), ask returns retrieval-only answers from the local index, and lint runs the passive watcher only. Surfaced via a top-nav badge, a banner on the ask page, and a new `agent.unavailable` SSE event. See [docs/wiki-only-mode.md](docs/wiki-only-mode.md).
+- **Playwright e2e suite** — 16 browser tests (21 with welcome) across Read, Ask, Curate, Library, Welcome modes; ~20s wall-time; deterministic via per-test API mocking (no real backend); 13 components got `data-testid` attributes for selector stability. New `pnpm test:e2e` script; CI runs the suite in a dedicated `e2e` job.
+- **Real app icons + brand mark** — bold cream "N" on an ink-blue squircle with a single amber "AI node" accent. Generated from a single Python script ([`desktop/sidecar/generate_icons.py`](desktop/sidecar/generate_icons.py)) that emits every Tauri size, ICNS, ICO, and the web favicon. See [`docs/branding.md`](docs/branding.md).
+- **PyInstaller-bundled sidecar** — the Tauri desktop app now ships a single-file backend binary (`desktop/sidecar/build.py` produces `notebookai-api-<rust-target-triple>`), so end-users no longer need `uv` installed. Tauri picks up the binary via `bundle.externalBin`; the Rust shell falls back to `uv run` for the developer loop when no bundled binary is present. CI matrix in `.github/workflows/build-sidecar.yml` builds for macOS arm64/x64, Linux x64/arm64, and Windows x64.
+
+### Stats
+- 7 PRs merged (#1–#6 plus the initial CI commit)
+- 134 backend tests passing (was 114), 21 Playwright e2e tests
+- ~25,000 source LOC (was ~14,400)
+
+### Migration from v0.1.0
+No breaking changes. New endpoints are additive (`POST /api/library/demo`, `GET/POST /api/notebooks/{id}/lint/schedule`, `POST .../lint/run-now`). `GET /api/notebooks/{id}` response gained `agent_status: {available, reason}`. New SSE events: `agent.unavailable`, `lint.scheduled`, `lint.skipped`, `lint.run_complete`. `notebook.json` schema additions are optional (`lint_schedule_enabled`, `lint_schedule_interval_minutes`); existing notebooks keep working with defaults.
 
 ## [0.1.0] — 2026-05-06
 
