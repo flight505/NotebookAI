@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { ModeNav } from "@/components/ModeNav";
 import { NotebookSwitcher } from "@/components/NotebookSwitcher";
+import { AgentStatusBadge } from "@/components/AgentStatusBadge";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
             </div>
             <NotebookSwitcher />
             <div className="flex-1" />
+            <AgentStatusBadge />
             <ModeNav />
           </header>
           <main className="flex-1 min-h-0 flex flex-col">{children}</main>

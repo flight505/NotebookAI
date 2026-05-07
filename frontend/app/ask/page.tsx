@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquarePlus, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { AlertTriangle } from "lucide-react";
 import { API_BASE_URL, ask, http } from "@/lib/api";
 import { useNotebookStore } from "@/store/useNotebook";
 import { Button } from "@/components/ui/Button";
@@ -84,6 +85,21 @@ function AskShell() {
       notebookId ? fetchChats(notebookId) : Promise.resolve([] as ChatSummary[]),
     enabled: !!notebookId,
   });
+
+  const statusQuery = useQuery({
+    queryKey: ["agent-status", notebookId],
+    queryFn: async () => {
+      if (!notebookId) return null;
+      const { data } = await http.get<{
+        agent_status?: { available: boolean; reason: string | null };
+      }>(`/notebooks/${notebookId}`);
+      return data.agent_status ?? null;
+    },
+    enabled: !!notebookId,
+  });
+  const isDegraded = statusQuery.data
+    ? statusQuery.data.available === false
+    : false;
 
   const chatQuery = useQuery({
     queryKey: ["chat", notebookId, chatParam],
@@ -243,6 +259,21 @@ function AskShell() {
 
       {/* Center: transcript + composer */}
       <main className="flex flex-col min-w-0">
+        {isDegraded && (
+          <div
+            role="status"
+            className="mx-4 mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-[1px]" />
+            <div>
+              <p className="font-medium">Wiki-only mode</p>
+              <p className="text-amber-800/80 dark:text-amber-200/80">
+                Claude is unavailable. Answers below are retrieved wiki
+                passages — no synthesis. Citations still work the same way.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto">
           {chatQuery.isLoading && chatParam ? (
             <div className="p-4 space-y-3">

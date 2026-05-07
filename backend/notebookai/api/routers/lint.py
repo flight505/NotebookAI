@@ -37,6 +37,7 @@ class LintRequest(BaseModel):
 class LintAccepted(BaseModel):
     op_id: str
     notebook_id: str
+    degraded: bool = False
 
 
 class LintFindingOut(BaseModel):
@@ -62,7 +63,7 @@ async def _drive_lint(
     mode: Literal["light", "full"],
 ) -> None:
     try:
-        result = await agent_operations.lint(runtime, notebook_root, mode=mode)
+        result = await agent_operations.smart_lint(runtime, notebook_root, mode=mode)
     except Exception as exc:  # noqa: BLE001
         broadcaster.publish(
             notebook_id,
@@ -89,8 +90,11 @@ async def trigger_lint(
 ) -> LintAccepted:
     root = resolve_notebook_root(notebook_id, config)
     op_id = str(ULID())
+    degraded = not runtime.credentials_available()
     asyncio.create_task(_drive_lint(runtime, root, notebook_id, op_id, mode=body.mode))
-    return LintAccepted(op_id=op_id, notebook_id=notebook_id)
+    return LintAccepted(
+        op_id=op_id, notebook_id=notebook_id, degraded=degraded
+    )
 
 
 @router.get("/findings", response_model=list[LintFindingOut])

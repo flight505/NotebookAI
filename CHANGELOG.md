@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v0.2 milestone
 
+### Added
+- **Agent-unavailable graceful degradation** — when Claude credentials are missing, NotebookAI now runs in "wiki-only mode": ingest still saves raw markdown (compile skipped), ask returns retrieval-only answers from the local index, and lint runs the passive watcher only. Surfaced via a top-nav badge, a banner on the ask page, and a new `agent.unavailable` SSE event. See [docs/wiki-only-mode.md](docs/wiki-only-mode.md).
+
 ### Planned
 - GitHub Actions CI — pytest + ruff + pnpm build + cargo check on every PR
-- Agent-unavailable graceful degradation — wiki-only mode when Claude credentials are missing
 - PyInstaller-bundled sidecar — Tauri desktop ships without requiring `uv` on the user's machine
 - Playwright end-to-end browser tests for the three modes
 - Real app icons (replacing the dark-blue "NA" placeholders)

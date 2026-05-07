@@ -82,6 +82,69 @@ def test_create_notebook(client: TestClient):
     assert g.json()["id"] == "ml-research"
 
 
+def test_notebook_get_includes_agent_status(
+    client: TestClient, make_notebook, monkeypatch: pytest.MonkeyPatch
+):
+    nb = make_notebook("Agent Status NB")
+
+    # Available case.
+    monkeypatch.setattr(
+        "notebookai.agent.runtime.AgentRuntime.credentials_available",
+        lambda self: True,
+    )
+    r = client.get(f"/api/notebooks/{nb['id']}")
+    assert r.status_code == 200
+    body = r.json()
+    assert "agent_status" in body
+    assert body["agent_status"]["available"] is True
+    assert body["agent_status"]["reason"] in (None, "")
+
+    # Unavailable case.
+    monkeypatch.setattr(
+        "notebookai.agent.runtime.AgentRuntime.credentials_available",
+        lambda self: False,
+    )
+    r2 = client.get(f"/api/notebooks/{nb['id']}")
+    assert r2.status_code == 200
+    body2 = r2.json()
+    assert body2["agent_status"]["available"] is False
+    assert body2["agent_status"]["reason"]
+    assert "wiki-only" in body2["agent_status"]["reason"].lower()
+
+
+def test_ingest_in_degraded_mode(
+    client: TestClient, make_notebook, monkeypatch: pytest.MonkeyPatch
+):
+    nb = make_notebook("Degraded Ingest")
+
+    monkeypatch.setattr(
+        "notebookai.agent.runtime.AgentRuntime.credentials_available",
+        lambda self: False,
+    )
+
+    async def fake_smart_ingest(runtime, root, *, source, source_type=None):
+        return agent_operations.OperationResult(
+            op="ingest",
+            op_id="00000000000000000000000050",
+            notebook_id=nb["id"],
+            summary="degraded ingest",
+            usage={"degraded": True},
+        )
+
+    monkeypatch.setattr(
+        "notebookai.api.routers.ingest.agent_operations.smart_ingest",
+        fake_smart_ingest,
+    )
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/ingest",
+        json={"source": "https://example.com/y", "source_type": "url"},
+    )
+    assert r.status_code == 202, r.text
+    body = r.json()
+    assert body["degraded"] is True
+    assert "op_id" in body
+
+
 def test_create_notebook_duplicate_409(client: TestClient):
     r1 = client.post("/api/notebooks", json={"name": "Dup"})
     assert r1.status_code == 201
@@ -166,7 +229,7 @@ def test_ingest_returns_202_with_op_id(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ingest.agent_operations.ingest", fake_ingest
+        "notebookai.api.routers.ingest.agent_operations.smart_ingest", fake_ingest
     )
 
     r = client.post(
@@ -193,7 +256,7 @@ def test_ingest_file_upload(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ingest.agent_operations.ingest", fake_ingest
+        "notebookai.api.routers.ingest.agent_operations.smart_ingest", fake_ingest
     )
 
     pdf_bytes = b"%PDF-1.4\n%minimal pdf\n"
@@ -226,7 +289,7 @@ def test_ask_non_stream_returns_answer(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ask.agent_operations.query", fake_query
+        "notebookai.api.routers.ask.agent_operations.smart_query", fake_query
     )
     r = client.post(
         f"/api/notebooks/{nb['id']}/ask",
@@ -258,7 +321,7 @@ def test_chats_listed_after_ask(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ask.agent_operations.query", fake_query
+        "notebookai.api.routers.ask.agent_operations.smart_query", fake_query
     )
     # Ask without chat_id => fresh chat created.
     r = client.post(
@@ -308,7 +371,7 @@ def test_chat_rename(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ask.agent_operations.query", fake_query
+        "notebookai.api.routers.ask.agent_operations.smart_query", fake_query
     )
     r = client.post(
         f"/api/notebooks/{nb['id']}/ask",
@@ -337,7 +400,7 @@ def test_chat_delete(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ask.agent_operations.query", fake_query
+        "notebookai.api.routers.ask.agent_operations.smart_query", fake_query
     )
     r = client.post(f"/api/notebooks/{nb['id']}/ask", json={"prompt": "x"})
     chat_id = r.json()["chat_id"]
@@ -388,7 +451,7 @@ def test_ask_stream_returns_sse(
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.ask.agent_operations.query", fake_query
+        "notebookai.api.routers.ask.agent_operations.smart_query", fake_query
     )
 
     app = create_app(config=app_config)
@@ -452,7 +515,7 @@ def test_lint_returns_202(client: TestClient, make_notebook, monkeypatch):
         )
 
     monkeypatch.setattr(
-        "notebookai.api.routers.lint.agent_operations.lint", fake_lint
+        "notebookai.api.routers.lint.agent_operations.smart_lint", fake_lint
     )
     r = client.post(f"/api/notebooks/{nb['id']}/lint", json={"mode": "light"})
     assert r.status_code == 202

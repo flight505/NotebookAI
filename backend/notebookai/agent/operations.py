@@ -297,11 +297,73 @@ async def lint(
     )
 
 
+# ---------------------------------------------------------------------------
+# Smart dispatchers — route to LLM path or wiki-only fallback based on
+# whether Claude credentials are available.
+# ---------------------------------------------------------------------------
+
+
+async def smart_ingest(
+    runtime: AgentRuntime,
+    notebook_root: Path,
+    *,
+    source: str,
+    source_type: SourceType | None = None,
+) -> OperationResult:
+    """Ingest, falling back to :class:`WikiOnlyMode` if no credentials."""
+    if runtime.credentials_available():
+        return await ingest(
+            runtime, notebook_root, source=source, source_type=source_type
+        )
+    from notebookai.agent.degraded import WikiOnlyMode
+
+    return await WikiOnlyMode().ingest(
+        notebook_root, source=source, source_type=source_type
+    )
+
+
+async def smart_query(
+    runtime: AgentRuntime,
+    notebook_root: Path,
+    *,
+    prompt: str,
+    archive: bool = False,
+) -> OperationResult:
+    """Query, falling back to :class:`WikiOnlyMode` if no credentials.
+
+    Archive is ignored in degraded mode (no synthesis → nothing to archive).
+    """
+    if runtime.credentials_available():
+        return await query(
+            runtime, notebook_root, prompt=prompt, archive=archive
+        )
+    from notebookai.agent.degraded import WikiOnlyMode
+
+    return await WikiOnlyMode().query(notebook_root, prompt=prompt)
+
+
+async def smart_lint(
+    runtime: AgentRuntime,
+    notebook_root: Path,
+    *,
+    mode: Literal["light", "full"] = "light",
+) -> OperationResult:
+    """Lint, falling back to passive-only checks if no credentials."""
+    if runtime.credentials_available():
+        return await lint(runtime, notebook_root, mode=mode)
+    from notebookai.agent.degraded import WikiOnlyMode
+
+    return await WikiOnlyMode().lint(notebook_root, mode=mode)
+
+
 __all__ = [
     "OperationResult",
     "ingest",
     "query",
     "lint",
+    "smart_ingest",
+    "smart_query",
+    "smart_lint",
     "_commit_op_result",
     "_detect_source_type",
 ]

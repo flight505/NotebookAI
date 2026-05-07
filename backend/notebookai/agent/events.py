@@ -121,7 +121,40 @@ class AgentError:
         }
 
 
-Event = Union[AgentToolCall, AgentToolResult, AgentMessage, AgentDone, AgentError]
+@dataclass
+class AgentUnavailable:
+    """`agent.unavailable` — fired at the start of a degraded (wiki-only) op.
+
+    Surfaces to the UI that Claude credentials were not available so the op
+    is running through the local-only fallback path.
+    """
+
+    _event_name: ClassVar[str] = "agent.unavailable"
+
+    notebook_id: str
+    op_id: str
+    op: str
+    reason: str
+    degraded_mode: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "notebook_id": self.notebook_id,
+            "op_id": self.op_id,
+            "op": self.op,
+            "reason": self.reason,
+            "degraded_mode": self.degraded_mode,
+        }
+
+
+Event = Union[
+    AgentToolCall,
+    AgentToolResult,
+    AgentMessage,
+    AgentDone,
+    AgentError,
+    AgentUnavailable,
+]
 
 
 EVENT_NAMES: dict[type, str] = {
@@ -130,6 +163,7 @@ EVENT_NAMES: dict[type, str] = {
     AgentMessage: AgentMessage._event_name,
     AgentDone: AgentDone._event_name,
     AgentError: AgentError._event_name,
+    AgentUnavailable: AgentUnavailable._event_name,
 }
 
 
@@ -139,6 +173,7 @@ __all__ = [
     "AgentMessage",
     "AgentDone",
     "AgentError",
+    "AgentUnavailable",
     "Event",
     "EVENT_NAMES",
     "OpName",
