@@ -386,6 +386,7 @@ export function subscribeEvents(
       "agent.message",
       "agent.done",
       "agent.error",
+      "agent.unavailable",
       "ingest.started",
       "ingest.complete",
       "lint.finding",

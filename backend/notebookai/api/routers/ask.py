@@ -39,6 +39,7 @@ class AskResponse(BaseModel):
     commit_sha: str | None = None
     usage: dict[str, Any] = {}
     chat_id: str
+    degraded: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +131,7 @@ async def _ask_event_stream(
 
     async def _drive() -> None:
         try:
-            result = await agent_operations.query(
+            result = await agent_operations.smart_query(
                 runtime,
                 notebook_root,
                 prompt=prompt,
@@ -217,7 +218,7 @@ async def ask(
         )
         return sse_response(gen)
 
-    result = await agent_operations.query(
+    result = await agent_operations.smart_query(
         runtime,
         root,
         prompt=body.prompt,
@@ -235,13 +236,15 @@ async def ask(
         ),
     )
 
+    usage = dict(result.usage or {})
     return AskResponse(
         op_id=result.op_id,
         answer=result.summary,
         citations=[c.model_dump() for c in citations],
         commit_sha=result.commit_sha,
-        usage=dict(result.usage or {}),
+        usage=usage,
         chat_id=chat.id,
+        degraded=bool(usage.get("degraded")),
     )
 
 

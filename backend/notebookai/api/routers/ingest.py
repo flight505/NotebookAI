@@ -41,6 +41,7 @@ class IngestRequest(BaseModel):
 class IngestAccepted(BaseModel):
     op_id: str
     notebook_id: str
+    degraded: bool = False
 
 
 async def _drive_ingest(
@@ -54,7 +55,7 @@ async def _drive_ingest(
 ) -> None:
     """Run the agent ingest op and republish its events on the broadcaster."""
     try:
-        result = await agent_operations.ingest(
+        result = await agent_operations.smart_ingest(
             runtime,
             notebook_root,
             source=source,
@@ -86,6 +87,7 @@ async def ingest_source(
 ) -> IngestAccepted:
     root = resolve_notebook_root(notebook_id, config)
     op_id = str(ULID())
+    degraded = not runtime.credentials_available()
 
     asyncio.create_task(
         _drive_ingest(
@@ -97,7 +99,9 @@ async def ingest_source(
             source_type=body.source_type,
         )
     )
-    return IngestAccepted(op_id=op_id, notebook_id=notebook_id)
+    return IngestAccepted(
+        op_id=op_id, notebook_id=notebook_id, degraded=degraded
+    )
 
 
 @router.post(
@@ -128,6 +132,7 @@ async def ingest_file(
         raise HTTPException(status_code=500, detail=f"upload failed: {exc}") from exc
 
     op_id = str(ULID())
+    degraded = not runtime.credentials_available()
     asyncio.create_task(
         _drive_ingest(
             runtime,
@@ -139,7 +144,9 @@ async def ingest_file(
         )
     )
     _ = topic_hint  # accepted but currently unused (forwarded to adapters in a later phase)
-    return IngestAccepted(op_id=op_id, notebook_id=notebook_id)
+    return IngestAccepted(
+        op_id=op_id, notebook_id=notebook_id, degraded=degraded
+    )
 
 
 __all__ = ["router"]

@@ -11,10 +11,12 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 from notebookai.agent.passive_watcher import supervisor as passive_watcher_supervisor
+from notebookai.agent.runtime import AgentRuntime
 from notebookai.api.dependencies import (
     AppConfig,
     get_config,
     get_notebook_meta,
+    get_runtime,
     resolve_notebook_root,
 )
 from notebookai.index.store import IndexStore
@@ -32,6 +34,17 @@ class CreateNotebookRequest(BaseModel):
 class PatchNotebookRequest(BaseModel):
     name: str | None = None
     description: str | None = None
+
+
+class AgentStatus(BaseModel):
+    available: bool
+    reason: str | None = None
+
+
+class NotebookMetaWithStatus(NotebookMeta):
+    """`NotebookMeta` plus a runtime ``agent_status`` field for the UI."""
+
+    agent_status: AgentStatus = AgentStatus(available=False, reason=None)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=NotebookMeta)
@@ -65,14 +78,28 @@ def create(
     return handle.meta
 
 
-@router.get("/{notebook_id}", response_model=NotebookMeta)
+@router.get("/{notebook_id}", response_model=NotebookMetaWithStatus)
 def read(
     notebook_id: str,
     config: Annotated[AppConfig, Depends(get_config)],
-) -> NotebookMeta:
+    runtime: Annotated[AgentRuntime, Depends(get_runtime)],
+) -> NotebookMetaWithStatus:
     meta = get_notebook_meta(notebook_id, config)
     _ensure_passive_watcher(notebook_id, resolve_notebook_root(notebook_id, config))
-    return meta
+    available = bool(runtime.credentials_available())
+    status = AgentStatus(
+        available=available,
+        reason=None
+        if available
+        else (
+            "Claude credentials not found — wiki-only mode is active. "
+            "Set ANTHROPIC_API_KEY or run `claude setup-token` to enable."
+        ),
+    )
+    return NotebookMetaWithStatus(
+        **meta.model_dump(),
+        agent_status=status,
+    )
 
 
 @router.patch("/{notebook_id}", response_model=NotebookMeta)

@@ -1,8 +1,9 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
+import { subscribeEvents } from "@/lib/api";
 import { useNotebookStore } from "@/store/useNotebook";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   const theme = useNotebookStore((s) => s.theme);
+  const notebookId = useNotebookStore((s) => s.currentNotebookId);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -39,8 +41,11 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
+  // Surface a one-time toast when the agent goes into wiki-only mode while
+  // the user is active. The badge in the top nav stays visible afterwards.
   return (
     <QueryClientProvider client={client}>
+      <_AgentUnavailableToaster notebookId={notebookId} client={client} />
       {children}
       <Toaster
         position="bottom-right"
@@ -55,4 +60,33 @@ export function Providers({ children }: { children: ReactNode }) {
       />
     </QueryClientProvider>
   );
+}
+
+function _AgentUnavailableToaster({
+  notebookId,
+  client,
+}: {
+  notebookId: string | null;
+  client: QueryClient;
+}) {
+  const seenRef = useRef(false);
+
+  useEffect(() => {
+    if (!notebookId) return;
+    seenRef.current = false;
+    const sub = subscribeEvents(notebookId, (event, data) => {
+      if (event !== "agent.unavailable") return;
+      // Refresh cached agent status so the badge updates.
+      client.invalidateQueries({ queryKey: ["agent-status", notebookId] });
+      if (seenRef.current) return;
+      seenRef.current = true;
+      const reason =
+        (data && typeof data.reason === "string" && data.reason) ||
+        "Claude is unavailable — running in wiki-only mode.";
+      toast(reason, { icon: "⚠️", duration: 6000 });
+    });
+    return () => sub.close();
+  }, [notebookId, client]);
+
+  return null;
 }
