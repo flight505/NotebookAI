@@ -97,17 +97,23 @@ def _write_placeholder() -> int:
     target = tauri_bin_dir / f"{BINARY_NAME}-{triple}{suffix}"
 
     if platform.system() == "Windows":
+        # %~dp0 is already an absolute path with trailing backslash, so
+        # appending the relative segment yields an absolute target.
         body = (
             "@echo off\r\n"
             "echo [notebookai-api] placeholder sidecar; using `uv run` fallback >&2\r\n"
-            'uv run --project "%~dp0..\\..\\..\\backend" notebookai-api %*\r\n'
+            'for %%I in ("%~dp0..\\..\\..\\backend") do set "BACKEND_DIR=%%~fI"\r\n'
+            'uv run --project "%BACKEND_DIR%" notebookai-api %*\r\n'
         )
     else:
+        # Resolve to an absolute path so the placeholder works no matter what
+        # cwd the parent process launches it from (cwd=/ in a packaged .app).
         body = (
             "#!/bin/sh\n"
             "echo '[notebookai-api] placeholder sidecar; using uv run fallback' >&2\n"
-            'exec uv run --project "$(dirname "$0")/../../../backend" '
-            'notebookai-api "$@"\n'
+            'BACKEND_DIR="$(cd -- "$(dirname -- "$0")/../../../backend" '
+            '&& pwd)"\n'
+            'exec uv run --project "$BACKEND_DIR" notebookai-api "$@"\n'
         )
     target.write_text(body, encoding="utf-8")
     if platform.system() != "Windows":
