@@ -56,6 +56,8 @@ export function CitationChip({
     <Tooltip content={tooltipContent} side="top">
       <Link
         href={href as any}
+        data-testid="citation-chip"
+        data-article-path={articlePath}
         className={cn(
           "inline-flex items-center gap-1 px-1.5 py-0.5",
           "rounded-md text-xs font-medium",

@@ -35,7 +35,7 @@ export function Backlinks({ current, articles, onNavigate }: BacklinksProps) {
   }
 
   return (
-    <ul className="px-2 py-2 space-y-1">
+    <ul className="px-2 py-2 space-y-1" data-testid="backlinks-list">
       {linkers.map((a, i) => {
         const snippet = extractSnippet(a.content, current.path);
         return (
@@ -47,6 +47,8 @@ export function Backlinks({ current, articles, onNavigate }: BacklinksProps) {
           >
             <button
               onClick={() => onNavigate(a.path)}
+              data-testid="backlinks-item"
+              data-path={a.path}
               className={cn(
                 "w-full text-left rounded-md p-2.5 transition-colors",
                 "hover:bg-muted group"

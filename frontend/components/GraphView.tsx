@@ -198,6 +198,7 @@ export function GraphView({
         className="w-full h-auto rounded-md border border-border bg-subtle/30"
         role="img"
         aria-label="Article graph"
+        data-testid="graph-view"
       >
         {edges.map((e, i) => {
           const a = nodeById.get(e.source);

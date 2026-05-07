@@ -262,6 +262,7 @@ function AskShell() {
         {isDegraded && (
           <div
             role="status"
+            data-testid="degraded-banner"
             className="mx-4 mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
           >
             <AlertTriangle className="h-4 w-4 shrink-0 mt-[1px]" />

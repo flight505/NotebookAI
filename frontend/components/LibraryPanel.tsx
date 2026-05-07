@@ -224,6 +224,7 @@ export function LibraryPanel() {
           size="sm"
           aria-label="Register external folder"
           onClick={() => setRegisterOpen(true)}
+          data-testid="library-register-external"
         >
           <FolderInput className="w-4 h-4" />
         </Button>
@@ -515,6 +516,7 @@ function RegisterExternalModal({
           if (path.trim()) mutation.mutate();
         }}
         className="space-y-4"
+        data-testid="register-external-form"
       >
         <div className="text-xs text-muted-foreground">
           Paste the absolute path to a folder containing

@@ -99,6 +99,7 @@ export function ChatComposer({
         onKeyDown={handleKey}
         placeholder={placeholder}
         rows={1}
+        data-testid="chat-composer-textarea"
         className={cn(
           "w-full resize-none bg-transparent px-4 py-3",
           "text-sm leading-[22px] text-foreground placeholder:text-muted-foreground",
@@ -128,6 +129,7 @@ export function ChatComposer({
             onClick={submit}
             disabled={!value.trim() || disabled}
             aria-label="Send message"
+            data-testid="chat-composer-send"
           >
             <Send className="w-3.5 h-3.5" />
             Send

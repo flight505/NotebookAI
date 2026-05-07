@@ -1,0 +1,91 @@
+name: Build sidecar binaries
+
+# Builds the PyInstaller-bundled FastAPI sidecar for every platform Tauri
+# can target. Runs on tag push (attaches binaries to the GitHub Release)
+# and on manual dispatch. Not part of the per-PR CI because PyInstaller
+# is slow (5-10 min) and bundles are large (~300 MB).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write  # required to attach release assets on tag push
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build sidecar (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-arm64
+            os: macos-14
+            triple: aarch64-apple-darwin
+            ext: ""
+          - label: macos-x64
+            os: macos-13
+            triple: x86_64-apple-darwin
+            ext: ""
+          - label: linux-x64
+            os: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+            ext: ""
+          - label: linux-arm64
+            os: ubuntu-22.04-arm
+            triple: aarch64-unknown-linux-gnu
+            ext: ""
+          - label: windows-x64
+            os: windows-latest
+            triple: x86_64-pc-windows-msvc
+            ext: ".exe"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Pin Python
+        working-directory: backend
+        run: uv python install
+
+      - name: Sync backend deps (with pyinstaller)
+        working-directory: backend
+        run: uv sync
+
+      - name: Build sidecar
+        run: uv run --project backend python desktop/sidecar/build.py --clean
+
+      - name: Show manifest
+        shell: bash
+        run: cat desktop/sidecar/build-manifest.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: notebookai-api-${{ matrix.triple }}
+          path: |
+            desktop/src-tauri/binaries/notebookai-api-${{ matrix.triple }}${{ matrix.ext }}
+            desktop/sidecar/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/src-tauri/binaries/notebookai-api-${{ matrix.triple }}${{ matrix.ext }}
+          fail_on_unmatched_files: true

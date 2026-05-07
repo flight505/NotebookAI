@@ -75,7 +75,7 @@ export function BudgetMeter({ notebookId }: BudgetMeterProps) {
   const outputPct = useMemo(() => percent(data?.output_tokens_used, data?.output_limit), [data]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="budget-meter">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Today's lint budget
@@ -201,7 +201,7 @@ function Bar({
       ? "bg-amber-500"
       : "bg-red-500";
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-testid={`budget-bar-${label.toLowerCase()}`} data-pct={pct}>
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-mono text-foreground/80">

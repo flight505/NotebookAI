@@ -259,10 +259,12 @@ export function ArticleReader({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       className="px-10 py-10 overflow-y-auto h-full"
+      data-testid="article-reader"
+      data-article-path={article.path}
     >
       <div className="max-w-prose mx-auto">
         <FrontmatterCard article={article} />
-        <h1 className="text-3xl font-semibold tracking-tight mb-1 text-foreground font-sans">
+        <h1 className="text-3xl font-semibold tracking-tight mb-1 text-foreground font-sans" data-testid="article-title">
           {article.title || article.path.replace(/\.md$/, "")}
         </h1>
         <p className="text-xs text-muted-foreground mb-8 font-mono">
@@ -274,7 +276,7 @@ export function ArticleReader({
             </>
           )}
         </p>
-        <div className="prose-article">
+        <div className="prose-article" data-testid="article-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkWikilinks(resolver)]}
             components={components}

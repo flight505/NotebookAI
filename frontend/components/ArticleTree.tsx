@@ -88,7 +88,7 @@ export function ArticleTree({
   }
 
   return (
-    <ul role="tree" className="py-2 px-1 text-sm">
+    <ul role="tree" className="py-2 px-1 text-sm" data-testid="article-tree">
       {[...root.children.values()]
         .sort((a, b) => sortNodes(a, b))
         .map((child) => (
@@ -175,9 +175,10 @@ function TreeRow({
 
   const title = node.article?.title ?? node.name.replace(/\.md$/, "");
   return (
-    <li role="treeitem" aria-selected={selected}>
+    <li role="treeitem" aria-selected={selected} data-testid="article-tree-item" data-path={node.path}>
       <button
         onClick={() => onSelect(node.path)}
+        data-testid={`article-tree-button-${node.path}`}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 pr-2 rounded-md text-left transition-colors",
           selected

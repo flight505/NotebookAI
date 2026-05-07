@@ -47,6 +47,7 @@ export function NotebookSwitcher() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
+        data-testid="notebook-switcher-trigger"
         className={cn(
           "inline-flex items-center gap-2 px-3 h-9 rounded-md text-sm font-medium",
           "border border-border bg-card hover:bg-muted transition-colors",
@@ -94,7 +95,7 @@ export function NotebookSwitcher() {
                   </p>
                 </div>
               ) : (
-                <ul className="py-1">
+                <ul className="py-1" data-testid="notebook-switcher-list">
                   {library.map((nb) => (
                     <NotebookRow
                       key={nb.id}
@@ -118,6 +119,7 @@ export function NotebookSwitcher() {
                   setOpen(false);
                   setCreateOpen(true);
                 }}
+                data-testid="notebook-switcher-new"
               >
                 <Plus className="w-4 h-4" />
                 New notebook
@@ -161,6 +163,8 @@ function NotebookRow({
     <li>
       <button
         onClick={onSelect}
+        data-testid="notebook-switcher-item"
+        data-notebook-id={notebook.id}
         className={cn(
           "w-full text-left px-3 py-2 flex items-center gap-3 transition-colors",
           active ? "bg-subtle" : "hover:bg-muted"
@@ -221,6 +225,7 @@ function CreateNotebookModal({
           if (name.trim()) mutation.mutate();
         }}
         className="space-y-4"
+        data-testid="create-notebook-form"
       >
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
@@ -231,6 +236,7 @@ function CreateNotebookModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="ML Research"
+            data-testid="create-notebook-name"
             className="w-full h-9 px-3 rounded-md border border-border bg-background text-sm focus:outline-none focus:border-accent"
           />
         </div>
@@ -254,6 +260,7 @@ function CreateNotebookModal({
             type="submit"
             variant="accent"
             disabled={!name.trim() || mutation.isPending}
+            data-testid="create-notebook-submit"
           >
             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             Create
