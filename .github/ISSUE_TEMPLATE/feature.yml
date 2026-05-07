@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a new capability or product behavior
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: User-visible problem first; technical proposal second.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Backend
+        - Frontend (Read mode)
+        - Frontend (Ask mode)
+        - Frontend (Curate mode)
+        - Desktop / Tauri
+        - CLI
+        - Skill bundle
+        - Multiple
