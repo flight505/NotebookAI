@@ -742,7 +742,7 @@ def test_events_stream_keepalive(app_config: AppConfig):
 
 
 # ---------------------------------------------------------------------------
-# /api/internal/state — process introspection (PR-2)
+# /api/internal/state — process introspection (PR-9)
 # ---------------------------------------------------------------------------
 
 
@@ -777,3 +777,78 @@ def test_internal_state_snapshot(client: TestClient, make_notebook) -> None:
     r2 = client.get("/api/internal/state")
     assert r2.status_code == 200
     assert nb_id in r2.json()["scheduler"]["notebooks"]
+
+
+# ---------------------------------------------------------------------------
+# SSE Last-Event-ID replay + stream.gap (PR-10)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_broadcaster_replays_envelopes_after_last_event_id() -> None:
+    """A reconnecting subscriber that supplies ``last_event_id`` must see
+    only envelopes published strictly after that id, in order.
+
+    Exercises the ring buffer + replay path directly (no HTTP) so the test
+    is hermetic and fast.
+    """
+    from notebookai.agent.events import AgentMessage
+    from notebookai.api.sse import EventBroadcaster
+
+    bc = EventBroadcaster()
+    nb = "nb-replay"
+
+    # Publish three events before any subscriber connects.
+    ids = []
+    for i in range(3):
+        eid = bc.publish(
+            nb,
+            AgentMessage(notebook_id=nb, op_id="01HW", text=f"msg-{i}"),
+        )
+        ids.append(eid)
+
+    # Reconnect with last_event_id = ids[0]. Should see ids[1] and ids[2].
+    seen: list[str] = []
+    agen = bc.subscribe_envelopes(nb, last_event_id=ids[0])
+    try:
+        # Replay yields are eager; pull two then bail.
+        env1 = await asyncio.wait_for(agen.__anext__(), timeout=1.0)
+        seen.append(env1.event_id)
+        env2 = await asyncio.wait_for(agen.__anext__(), timeout=1.0)
+        seen.append(env2.event_id)
+    finally:
+        await agen.aclose()
+
+    assert seen == [ids[1], ids[2]], (
+        f"replay should yield ids strictly after {ids[0]}, got {seen}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_broadcaster_emits_stream_gap_on_queue_full() -> None:
+    """When a subscriber's queue is full, publish must drop one in-flight
+    envelope and insert a :class:`StreamGap` so the slow client knows it
+    missed events. Verifies the gap event lands on the wire.
+    """
+    from notebookai.agent.events import AgentMessage
+    from notebookai.api.sse import EventBroadcaster, StreamGap, _Envelope
+
+    bc = EventBroadcaster()
+    nb = "nb-gap"
+
+    # Manually attach a tiny queue so we can saturate it deterministically.
+    q: asyncio.Queue = asyncio.Queue(maxsize=2)
+    bc._channels.setdefault(nb, []).append(q)
+    bc._loops[q] = asyncio.get_running_loop()
+
+    # Fill the queue + one more publish triggers the gap path.
+    for i in range(3):
+        bc.publish(nb, AgentMessage(notebook_id=nb, op_id="01HW", text=f"m{i}"))
+
+    drained: list[_Envelope] = []
+    while not q.empty():
+        drained.append(q.get_nowait())
+
+    assert any(
+        isinstance(env.event, StreamGap) for env in drained
+    ), f"expected at least one StreamGap envelope, got {[type(e.event).__name__ for e in drained]}"

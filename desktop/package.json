@@ -5,7 +5,7 @@
   "description": "NotebookAI Tauri 2 desktop shell",
   "scripts": {
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "tauri dev --features devtools",
     "tauri:build": "tauri build",
     "tauri:build:debug": "cargo tauri build --debug --manifest-path src-tauri/Cargo.toml"
   },

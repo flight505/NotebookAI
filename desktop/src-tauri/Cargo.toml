@@ -21,10 +21,20 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+# Lightweight HTTP client for /healthz probing. Default features pull in
+# native-tls; we drop them — local 127.0.0.1 probes never need TLS — and
+# disable the json feature since we only inspect the status code.
+ureq = { version = "2", default-features = false }
+# Browser-style devtools, gated behind the `devtools` feature so release
+# artifacts stay lean. `pnpm tauri:dev` enables the feature (see scripts);
+# `pnpm tauri:build` does not.
+tauri-plugin-devtools = { version = "2", optional = true }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+devtools = ["dep:tauri-plugin-devtools"]
