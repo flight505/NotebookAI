@@ -1,3 +1,4 @@
 #!/bin/sh
 echo '[notebookai-api] placeholder sidecar; using uv run fallback' >&2
-exec uv run --project "$(dirname "$0")/../../../backend" notebookai-api "$@"
+BACKEND_DIR="$(cd -- "$(dirname -- "$0")/../../../backend" && pwd)"
+exec uv run --project "$BACKEND_DIR" notebookai-api "$@"

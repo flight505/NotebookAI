@@ -63,13 +63,13 @@ Scaffold a notebook, run the dev stack, ingest a URL, and watch the wiki page ap
 cd backend && uv run notebookai new ml-research
 
 # 2. Start the FastAPI backend (file watcher + agent runtime + SSE)
-cd backend && uv run notebookai-api &
+cd backend && uv run notebookai serve &
 
 # 3. Start the Next.js frontend
 cd frontend && pnpm dev
 
 # 4. Ingest a URL via the API
-curl -X POST http://localhost:8000/api/notebooks/ml-research/ingest \
+curl -X POST http://localhost:8765/api/notebooks/ml-research/ingest \
      -H 'Content-Type: application/json' \
      -d '{"url": "https://lilianweng.github.io/posts/2023-06-23-agent/"}'
 

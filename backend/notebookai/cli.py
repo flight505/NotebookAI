@@ -30,6 +30,7 @@ structlog.configure(
 )
 
 from notebookai import __version__  # noqa: E402
+from notebookai.agent.credentials import claude_credentials_available  # noqa: E402
 from notebookai.config import get_config  # noqa: E402
 from notebookai.library.scanner import LibraryScanner  # noqa: E402
 from notebookai.scaffold import create_notebook  # noqa: E402
@@ -99,6 +100,15 @@ def serve(
     bind_host = host or cfg.api_host
     bind_port = port or cfg.api_port
 
+    # CLI module-import suppressed stdlib + structlog to ERROR so subcommand
+    # output stays focused; the server needs real logging back. Restore via
+    # the same configurator the `notebookai-api` console-script uses so both
+    # entry points behave identically.
+    from notebookai.api.main import _configure_logging
+
+    logging.getLogger().setLevel(logging.NOTSET)
+    _configure_logging(cfg.log_level)
+
     import uvicorn
 
     typer.echo(f"NotebookAI API: http://{bind_host}:{bind_port}")
@@ -114,22 +124,6 @@ def serve(
 # ---------------------------------------------------------------------------
 # status
 # ---------------------------------------------------------------------------
-
-
-def _claude_credentials_available() -> bool:
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return True
-    candidates = [
-        Path.home() / ".claude" / ".credentials.json",
-        Path.home() / ".config" / "claude" / "credentials.json",
-    ]
-    for cand in candidates:
-        try:
-            if cand.is_file():
-                return True
-        except OSError:
-            continue
-    return False
 
 
 @app.command()
@@ -160,7 +154,7 @@ def status(
         "api_url": f"http://{cfg.api_host}:{cfg.api_port}/api",
         "agent_model": cfg.agent_model,
         "lint_model": cfg.lint_model,
-        "claude_credentials_available": _claude_credentials_available(),
+        "claude_credentials_available": claude_credentials_available(),
     }
 
     if json_out:

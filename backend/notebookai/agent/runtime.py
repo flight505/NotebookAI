@@ -105,22 +105,9 @@ class AgentRuntime:
     # Credential availability — lets tests skip live calls cleanly.
     # ------------------------------------------------------------------
     def credentials_available(self) -> bool:
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            return True
-        # Max OAuth: `claude setup-token` writes a credential file inside
-        # the user's ~/.claude/ directory. We don't read it — just check it
-        # exists. Don't fail closed on permission errors; treat as missing.
-        candidates = [
-            Path.home() / ".claude" / ".credentials.json",
-            Path.home() / ".config" / "claude" / "credentials.json",
-        ]
-        for cand in candidates:
-            try:
-                if cand.is_file():
-                    return True
-            except OSError:
-                continue
-        return False
+        from notebookai.agent.credentials import claude_credentials_available
+
+        return claude_credentials_available()
 
 
 # ---------------------------------------------------------------------------

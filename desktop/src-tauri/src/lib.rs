@@ -48,6 +48,14 @@ fn backend_env() -> Vec<(String, String)> {
     env_vars
 }
 
+/// Absolute path to the backend project directory, baked at compile time.
+///
+/// Resolves `desktop/src-tauri/../../backend`. Using `env!("CARGO_MANIFEST_DIR")`
+/// keeps the path correct regardless of where the binary is launched from
+/// (dev runs `cwd` is variable; packaged `.app` launches with `cwd=/`).
+const BACKEND_PROJECT_DIR: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../backend");
+
 /// Try the bundled PyInstaller sidecar first; if it isn't on disk (typical
 /// in `pnpm tauri:dev` before anyone has run `python desktop/sidecar/build.py`),
 /// fall back to `uv run`. The fallback keeps the developer loop unchanged.
@@ -62,17 +70,18 @@ fn build_backend_command(app: &tauri::AppHandle) -> Result<Command, String> {
         }
         Err(err) => {
             eprintln!(
-                "[notebookai] bundled sidecar '{SIDECAR_NAME}' not found ({err}); \
-                 falling back to `uv run --project ../../backend notebookai-api`. \
+                "[notebookai] bundled sidecar '{}' not found ({}); \
+                 falling back to `uv run --project {} notebookai-api`. \
                  This is expected during development. To bundle for release, run \
-                 `python desktop/sidecar/build.py`."
+                 `python desktop/sidecar/build.py`.",
+                SIDECAR_NAME, err, BACKEND_PROJECT_DIR
             );
             let cmd = shell
                 .command("uv")
                 .args([
                     "run",
                     "--project",
-                    "../../backend",
+                    BACKEND_PROJECT_DIR,
                     "notebookai-api",
                 ])
                 .envs(env_vars);
