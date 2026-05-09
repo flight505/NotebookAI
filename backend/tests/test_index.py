@@ -301,3 +301,108 @@ async def test_watcher_debounce(tmp_path: Path) -> None:
     )
     assert all(r.scope in ("embeddings", "all") for r in rollups)
     _ = sys  # keep import; platform notes documented in CONTRACTS
+
+
+# ---------------------------------------------------------------------------
+# WAL + embedder compatibility (PR-4)
+# ---------------------------------------------------------------------------
+
+
+def test_store_bootstrap_enables_wal(tmp_path: Path) -> None:
+    """PRAGMA journal_mode must be WAL on both connections after bootstrap."""
+    nb = _make_notebook_layout(tmp_path)
+    store = _store(nb)
+    try:
+        # Vec connection — direct PRAGMA query.
+        vec_mode = store._vec_conn.execute("PRAGMA journal_mode").fetchone()
+        assert vec_mode and vec_mode[0].lower() == "wal"
+
+        # SQLAlchemy connection — drive a session and query through it.
+        with store.session() as s:
+            row = s.execute(__import__("sqlalchemy").text("PRAGMA journal_mode")).first()
+            assert row and str(row[0]).lower() == "wal"
+    finally:
+        store.close()
+
+
+def test_ensure_embedder_compatibility_first_call_records_meta(
+    tmp_path: Path,
+) -> None:
+    """First call with empty Notebook row must record model+dim and not rebuild."""
+    nb = _make_notebook_layout(tmp_path)
+    store = _store(nb)
+    try:
+        rebuilt = store.ensure_embedder_compatibility(
+            "test-nb", model_name="BAAI/bge-small-en-v1.5", dim=384
+        )
+        assert rebuilt is False
+        model, dim = store.get_embedding_meta("test-nb")
+        assert model == "BAAI/bge-small-en-v1.5"
+        assert dim == 384
+    finally:
+        store.close()
+
+
+def test_ensure_embedder_compatibility_dim_mismatch_resets(
+    tmp_path: Path,
+) -> None:
+    """Switching to a model with a different dim must drop chunks + rebuild
+    the vec0 table at the new dim."""
+    nb = _make_notebook_layout(tmp_path)
+    store = _store(nb)
+    try:
+        # Seed: pretend the index was built with bge-small (384-dim).
+        store.set_embedding_meta(
+            "test-nb", model_name="BAAI/bge-small-en-v1.5", dim=384
+        )
+        # Insert a fake source file + embedding chunk so the reset has
+        # something to drop.
+        sf_id = store.upsert_source_file(
+            notebook_id="test-nb",
+            kind=SourceKind.wiki,
+            path="wiki/x.md",
+            size=10,
+            sha256="0" * 64,
+            mtime=1.0,
+        )
+        emb = FakeEmbedder(dim=store.dim)
+        store.upsert_embedding_chunk(
+            source_file_id=sf_id,
+            kind=ChunkKind.wiki,
+            ord=0,
+            text="hello",
+            vec=emb.encode(["hello"])[0],
+        )
+        assert store.count_chunks("test-nb", ChunkKind.wiki) == 1
+
+        # Now "swap" to bge-m3 (1024-dim) — should reset.
+        rebuilt = store.ensure_embedder_compatibility(
+            "test-nb", model_name="BAAI/bge-m3", dim=1024
+        )
+        assert rebuilt is True
+        assert store.dim == 1024
+        assert store.count_chunks("test-nb", ChunkKind.wiki) == 0
+        model, dim = store.get_embedding_meta("test-nb")
+        assert model == "BAAI/bge-m3"
+        assert dim == 1024
+    finally:
+        store.close()
+
+
+def test_index_builder_bootstrap_records_live_embedder(tmp_path: Path) -> None:
+    """IndexBuilder.bootstrap should populate the Notebook row with the
+    embedder's actual model_name and dim on first run."""
+    nb = _make_notebook_layout(tmp_path)
+    store = _store(nb)
+    try:
+        emb = FakeEmbedder(dim=64)
+        # FakeEmbedder doesn't expose a model_name; the builder falls back to
+        # the class name — verify either form is recorded.
+        builder = IndexBuilder(store, emb, "test-nb", nb)
+        rebuilt = builder.bootstrap()
+        assert rebuilt is False  # nothing previously recorded
+        model, dim = store.get_embedding_meta("test-nb")
+        assert dim == 64
+        assert model in {"FakeEmbedder", None, ""}
+    finally:
+        store.close()

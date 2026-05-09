@@ -59,6 +59,31 @@ class IndexBuilder:
         self.notebook_id = notebook_id
         self.notebook_root = Path(notebook_root).resolve()
 
+    # -- lifecycle ------------------------------------------------------
+
+    def bootstrap(self) -> bool:
+        """Initialise the index for this builder's notebook + embedder.
+
+        Runs ``store.bootstrap`` (tables / vec0 / Notebook row), then
+        reconciles the recorded embedder metadata against the live
+        embedder. If the dim has changed, the chunk table is dropped and
+        the vec0 virtual table is recreated at the new dim. Returns
+        ``True`` when the caller should re-walk source files and re-embed.
+        """
+        self.store.bootstrap()
+        model_name = getattr(self.embedder, "model_name", None) or type(
+            self.embedder
+        ).__name__
+        try:
+            dim = int(self.embedder.dim)
+        except Exception:
+            # If the embedder can't report its dim yet (lazy-load failure),
+            # leave the recorded meta alone — better than mis-recording.
+            return False
+        return self.store.ensure_embedder_compatibility(
+            self.notebook_id, model_name=model_name, dim=dim
+        )
+
     # -- helpers --------------------------------------------------------
 
     def _abs(self, rel: str) -> Path:

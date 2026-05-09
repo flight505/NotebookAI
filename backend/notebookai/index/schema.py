@@ -75,6 +75,14 @@ class Notebook(Base):
     """Mirrors ``notebook.json``. Populated by :meth:`IndexStore.bootstrap`.
 
     One row per notebook DB (typically one).
+
+    The ``embedding_model`` and ``embedding_dim`` columns track what the
+    index was *built with* (as opposed to ``notebook.json.embeddings``,
+    which records the user's declared default). If the live embedder's
+    model or dim diverges from what's recorded here,
+    :meth:`IndexStore.ensure_embedder_compatibility` drops the existing
+    chunks and recreates the sqlite-vec table with the new dim — a clean
+    rebuild rather than silent garbage results.
     """
 
     __tablename__ = "notebooks"
@@ -84,6 +92,12 @@ class Notebook(Base):
     root_path: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=_utcnow, nullable=False)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Nullable for back-compat: existing notebooks created before this column
+    # was introduced will have NULL until the next bootstrap populates them.
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(160), nullable=True
+    )
+    embedding_dim: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     source_files: Mapped[list[SourceFile]] = relationship(
         back_populates="notebook",
