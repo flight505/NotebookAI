@@ -194,6 +194,22 @@ _DEFAULT_ALLOWED_TOOLS: list[str] = [
     "WebFetch",
 ]
 
+# Relative paths the SDK looks for when ``setting_sources=["project"]`` —
+# either of these satisfies skill discovery so cross-CLI portability holds
+# (Claude Code reads .claude/skills/, agentskills.io CLIs read .agents/skills/).
+_SKILL_BUNDLE_RELATIVE_PATHS: tuple[Path, ...] = (
+    Path(".claude") / "skills" / "karpathy-llm-wiki" / "SKILL.md",
+    Path(".agents") / "skills" / "karpathy-llm-wiki" / "SKILL.md",
+)
+
+
+def _skill_bundle_present(notebook_root: Path) -> bool:
+    """True if at least one supported skill-discovery path resolves on disk."""
+    for rel in _SKILL_BUNDLE_RELATIVE_PATHS:
+        if (notebook_root / rel).is_file():
+            return True
+    return False
+
 
 class AgentSession:
     """One active operation against the Claude Agent SDK.
@@ -280,6 +296,24 @@ class AgentSession:
             notebook_id=self.notebook_id,
             prompt_preview=prompt[:200],
         )
+
+        # Skill loading depends on ``cwd=notebook_root`` + ``setting_sources=["project"]``
+        # plus the skill bundle existing on disk. Missing-skill silently degrades
+        # the operation (SDK proceeds without the karpathy-llm-wiki prompt), so
+        # surface it explicitly rather than letting the agent flounder.
+        if not _skill_bundle_present(self.notebook_root):
+            yield AgentError(
+                notebook_id=self.notebook_id,
+                op_id=self.op_id,
+                error_type="skill_missing",
+                message=(
+                    "karpathy-llm-wiki skill bundle not found under "
+                    ".claude/skills/ or .agents/skills/. Run `notebookai new` "
+                    "to scaffold the bundle, or copy it from skills/karpathy-llm-wiki/."
+                ),
+                retriable=False,
+            )
+            return
 
         # Build the prompt — keep it stable so prompt caching can work.
         full_prompt = (

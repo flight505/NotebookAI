@@ -234,6 +234,38 @@ def test_session_op_id_unique(tmp_path, monkeypatch):
     assert s1.notebook_id == "nb-id"
 
 
+@pytest.mark.asyncio
+async def test_session_run_yields_skill_missing_when_bundle_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When neither .claude/skills nor .agents/skills holds the bundle,
+    :meth:`AgentSession.run` must yield a typed AgentError(skill_missing)
+    before any SDK call so callers don't silently degrade.
+    """
+    from notebookai.agent.events import AgentError
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    nb = tmp_path / "nb"
+    nb.mkdir()
+    (nb / ".notebookai").mkdir()
+    (nb / ".notebookai" / "notebook.json").write_text(
+        json.dumps({"id": "nb-id"}), encoding="utf-8"
+    )
+    # Deliberately do NOT create the skill bundle directories.
+
+    rt = AgentRuntime()
+    session = rt.session(nb, op="query")
+    # Bypass __aenter__ to avoid pulling in the SDK; the skill check happens
+    # at the top of run(), before the SDK client is touched.
+    events = []
+    async for ev in session.run("hello"):
+        events.append(ev)
+    assert len(events) == 1
+    assert isinstance(events[0], AgentError)
+    assert events[0].error_type == "skill_missing"
+    assert events[0].retriable is False
+
+
 # ---------------------------------------------------------------------------
 # Commit helper
 # ---------------------------------------------------------------------------

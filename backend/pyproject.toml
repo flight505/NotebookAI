@@ -27,7 +27,9 @@ dependencies = [
     "readability-lxml>=0.8.1",
     "html2text>=2024.2.26",
     "youtube-transcript-api>=0.6.2",
-    "claude-agent-sdk>=0.1",
+    # Pinned to the 0.1.x line: the SDK is pre-1.0 and ships breaking changes
+    # within minors. Bump deliberately after re-running tests/test_agent.py.
+    "claude-agent-sdk>=0.1.76,<0.2",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic-settings>=2.1",

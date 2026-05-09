@@ -16,14 +16,39 @@ import structlog
 
 from notebookai.config import get_config
 
+# Pin "spawn" as the multiprocessing start method at import time. macOS already
+# defaults to spawn since 3.8, but Linux defaults to "fork", and forking after
+# we've initialised CUDA/Tokenizers/asyncio workers is a known source of dead-
+# locks (e.g. sentence-transformers + uvicorn). ``force=False`` keeps any
+# explicit caller setting; we only set it if no method has been chosen yet.
+try:  # pragma: no cover - exercised by import side effect
+    multiprocessing.set_start_method("spawn", force=False)
+except (RuntimeError, ValueError):
+    # RuntimeError if already set; ValueError if the platform doesn't support
+    # spawn (none we target). Either way there's nothing to fix.
+    pass
+
 
 def _configure_logging(level: str = "INFO") -> None:
+    """Wire stdlib + structlog. TTY → coloured ConsoleRenderer; pipes → JSON.
+
+    Choosing the renderer based on ``stdout.isatty()`` lets a developer running
+    ``notebookai-api`` in a terminal see human-readable logs while a packaged
+    sidecar (whose stdout is captured by the Tauri shell) keeps emitting JSON
+    that downstream tooling can parse.
+    """
     logging.basicConfig(level=level)
+    is_tty = sys.stdout.isatty()
+    renderer = (
+        structlog.dev.ConsoleRenderer(colors=True)
+        if is_tty
+        else structlog.processors.JSONRenderer()
+    )
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer(),
+            renderer,
         ]
     )
 

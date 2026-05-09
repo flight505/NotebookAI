@@ -71,6 +71,16 @@ def reset_config_cache() -> None:
     _cached_scheduler.cache_clear()
 
 
+def dispose_caches() -> None:
+    """Lifespan helper: drop singletons so a subsequent boot doesn't reuse
+    a stale runtime/scheduler. Same effect as :func:`reset_config_cache` but
+    named distinctly so test fixtures and shutdown paths have separate
+    intents in stack traces."""
+    _cached_config.cache_clear()
+    _cached_runtime.cache_clear()
+    _cached_scheduler.cache_clear()
+
+
 @lru_cache(maxsize=1)
 def _cached_runtime() -> AgentRuntime:
     cfg = _cached_config()
@@ -122,6 +132,7 @@ __all__ = [
     "get_runtime",
     "get_scheduler",
     "reset_config_cache",
+    "dispose_caches",
     "resolve_notebook_root",
     "get_notebook_meta",
 ]
