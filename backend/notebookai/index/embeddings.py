@@ -2,6 +2,20 @@
 
 Wraps ``sentence-transformers`` with auto-detected device. Provides a
 deterministic ``FakeEmbedder`` for tests so we never download a model in CI.
+
+Model choices (override via ``NOTEBOOKAI_EMB_MODEL``):
+
+* **BAAI/bge-small-en-v1.5** *(default, 384-dim, ~33 MB)* — solid English
+  retrieval baseline, sub-100 ms per chunk on M-series CPU.
+* **Snowflake/snowflake-arctic-embed-s** *(384-dim, ~33 MB)* — drop-in
+  alternative; beats bge-small on MTEB, identical sidecar bundle size.
+* **BAAI/bge-m3** *(1024-dim, ~600 MB)* — multilingual, longer-context
+  (8192 tokens), best quality. Bloats the desktop sidecar; gate behind
+  the ``NOTEBOOKAI_EMB_LARGE=1`` opt-in described in ``.env.example``.
+
+Switching models triggers an automatic index rebuild on next
+:meth:`IndexBuilder.bootstrap` because the recorded model/dim no longer
+match the live embedder. No manual rebuild step required.
 """
 
 from __future__ import annotations
