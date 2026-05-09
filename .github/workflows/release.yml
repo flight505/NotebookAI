@@ -115,6 +115,14 @@ jobs:
         working-directory: frontend
         run: pnpm build:tauri
 
+      # tauri-action runs `npm run tauri build` from `desktop/`, which needs
+      # @tauri-apps/cli installed there (it lives in `desktop/package.json`'s
+      # devDependencies, not in the frontend workspace). Without this step
+      # the action fails with `sh: tauri: command not found`.
+      - name: Install desktop deps (provides the `tauri` CLI)
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile=false
+
       # ---- Tauri bundle ------------------------------------------------
 
       - name: Build + publish Tauri bundle
