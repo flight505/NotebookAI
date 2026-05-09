@@ -1,4 +1,7 @@
 import axios, { AxiosInstance } from "axios";
+import createOpenApiClient from "openapi-fetch";
+
+import type { paths } from "./api.gen";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8765/api";
@@ -7,6 +10,23 @@ export const http: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30_000,
   headers: { "Content-Type": "application/json" },
+});
+
+/**
+ * Typed REST client generated from the FastAPI app's OpenAPI schema.
+ *
+ * New code should prefer this over the hand-written wrappers below — a
+ * backend-side rename (e.g. router signature change, pydantic field rename)
+ * surfaces as a TypeScript error rather than a runtime 422. The legacy
+ * functions stay because rewriting every call site is its own PR.
+ *
+ * Regenerate types via `pnpm gen:api` after backend schema changes.
+ *
+ * Usage:
+ *   const { data, error } = await apiClient.GET("/library");
+ */
+export const apiClient = createOpenApiClient<paths>({
+  baseUrl: API_BASE_URL,
 });
 
 // ─── Types matching CONTRACTS.md ──────────────────────────────────────────────

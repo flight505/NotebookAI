@@ -44,7 +44,10 @@ jobs:
 
   frontend:
     name: Frontend (next build)
-    runs-on: macos-14
+    # Next.js builds are platform-agnostic; ubuntu-latest runners are ~10×
+    # cheaper than macos-14 minutes. The desktop job below stays on macOS
+    # because cargo-check needs Apple frameworks for `macos-private-api`.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
@@ -125,16 +128,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache cargo registry + target
-        uses: actions/cache@v4
+      # Swatinem/rust-cache locks on Cargo.lock (when present) and on the
+      # full workspace path, so partial dep upgrades reuse the cache instead
+      # of bombing back to a cold compile. Replaces the hand-rolled
+      # actions/cache@v4 entry that keyed on Cargo.toml only.
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            desktop/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          workspaces: desktop/src-tauri
 
       - name: Ensure frontend out/ exists for tauri::generate_context!
         run: mkdir -p ../../frontend/out && touch ../../frontend/out/.gitkeep

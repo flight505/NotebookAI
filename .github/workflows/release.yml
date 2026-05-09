@@ -1,0 +1,146 @@
+name: Release Tauri bundles
+
+# Builds NotebookAI's Tauri shell into platform-native bundles (.dmg / .msi /
+# .AppImage / .deb) and attaches them to the GitHub release on tag push.
+#
+# build-sidecar.yml runs in parallel and attaches the raw FastAPI sidecar
+# binaries; this workflow re-builds the sidecar inside its own matrix so
+# tauri-action can stamp it into the bundle. Sidecar compilation is the
+# slowest step (~5–10 min PyInstaller); the duplication is the price of
+# keeping each workflow self-contained.
+#
+# Codesigning + notarization are NOT enabled here. The CHANGELOG flags them
+# as planned; this workflow ships unsigned bundles until the relevant
+# secrets (Apple developer id, certificates, updater pubkey) are populated.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Tauri bundle (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-arm64
+            os: macos-14
+            rust_target: aarch64-apple-darwin
+          - label: macos-x64
+            os: macos-13
+            rust_target: x86_64-apple-darwin
+          - label: linux-x64
+            os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+          - label: windows-x64
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---- Toolchain --------------------------------------------------
+
+      - name: Install Linux Tauri prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Cache cargo (Tauri target dir)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      # ---- Build sidecar (matches build-sidecar.yml) -------------------
+
+      - name: Pin Python
+        working-directory: backend
+        run: uv python install
+
+      - name: Sync backend deps (with pyinstaller)
+        working-directory: backend
+        run: uv sync
+
+      - name: Build sidecar binary
+        run: uv run --project backend python desktop/sidecar/build.py --clean
+
+      # ---- Frontend static export -------------------------------------
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Build frontend (Tauri target)
+        working-directory: frontend
+        run: pnpm build:tauri
+
+      # ---- Tauri bundle ------------------------------------------------
+
+      - name: Build + publish Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Codesigning placeholders — populate when the relevant secrets exist.
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          # Frontend already built above; tauri-action only does the Rust shell.
+          projectPath: desktop
+          # Use the existing tag rather than auto-creating one.
+          tagName: ${{ github.ref_name }}
+          releaseName: "NotebookAI ${{ github.ref_name }}"
+          releaseBody: |
+            Automated release. See [CHANGELOG.md](../blob/main/CHANGELOG.md) for details.
+
+            Bundles for: macOS (arm64 + x64), Linux (x64), Windows (x64).
+            Sidecar binaries attached separately by `build-sidecar.yml`.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.rust_target }}
