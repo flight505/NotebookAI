@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
     : {}),
   experimental: {
     typedRoutes: true,
+    // React Compiler (stable @ 1.0.0) auto-memoizes component output so
+    // hand-rolled useMemo/useCallback/React.memo become unnecessary in most
+    // cases. Next still surfaces it under `experimental` until the framework
+    // promotes the flag. The Playwright suite in CI is the safety net for
+    // any compiler-incompatible patterns the lints don't catch.
+    reactCompiler: true,
   },
 };
 
